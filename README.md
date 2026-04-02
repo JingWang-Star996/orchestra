@@ -1,9 +1,267 @@
+# 🎻 Orchestra
+
+**A Multi-Agent Orchestration System**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Chinese](https://img.shields.io/badge/语言 - 中文-red.svg)](README.md#chinese-version)
+
+---
+
+## 📖 Overview
+
+**Orchestra** is a multi-agent orchestration system inspired by the collaborative model of a symphony orchestra.
+
+Just as a conductor coordinates violins, cellos, and drums to play a complete symphony, Orchestra coordinates multiple AI agents (each with specialized roles) to complete complex tasks.
+
+**Core Philosophy**:
+> Humans make decisions, AI executes. Specialists do specialized work, together creating a complete symphony.
+
+---
+
+## ✨ Key Features
+
+| Feature | Description | Analogy |
+|------|------|------|
+| 🎯 Task Decomposition | 1 complex requirement → N executable subtasks | Score → Parts |
+| 🤖 Agent Routing | Automatically assign tasks to the right agent | Who plays what |
+| 📊 Progress Tracking | Real-time monitoring of all subtask status | Keep rhythm together |
+| 📋 Result Aggregation | Automatically integrate all AI outputs | The complete symphony |
+
+---
+
+## 🚀 Quick Start
+
+### Usage Examples
+
+#### Example 1: Game System Design
+```
+Input: "Design a pet raising system"
+→ Auto-decompose into 24 subtasks
+→ Assign to corresponding AI agents
+→ Output complete proposal in 2 hours
+```
+
+#### Example 2: Version Planning
+```
+Input: "What features for next version"
+→ AI CEO analyzes strategic direction
+→ AI Product Manager breaks down requirements
+→ AI Data Analyst estimates workload
+→ Output version planning document
+```
+
+#### Example 3: Code Review
+```
+Input: "Review this combat module"
+→ AI Lead Programmer checks code quality
+→ AI QA checks edge cases
+→ Output review report
+```
+
+---
+
+## 📁 Architecture
+
+### Core Modules (1119 lines of code)
+
+```
+orchestrator/
+├── planner.js      # Task Planner (decomposition)
+├── router.js       # Agent Router (task→agent matching)
+├── tracker.js      # Progress Tracker (real-time status)
+├── aggregator.js   # Result Aggregator (integration)
+├── error.js        # Error Handler (retry, fallback)
+└── index.js        # Main Entry (API)
+```
+
+### Agent System (24 roles, customizable)
+
+**Management**:
+- AI CEO, AI Producer, AI Lead Designer
+
+**Design**:
+- AI System Designer, AI Numerical Designer, AI Level Designer, AI Narrative Designer, AI Combat Designer, AI Economy Designer, AI Event Designer
+
+**Art**:
+- AI Art Director, AI Art Lead, AI Character Artist
+
+**Engineering**:
+- AI Tech Lead, AI Client Programmer, AI Server Programmer, AI AI Architect
+
+**Operations**:
+- AI Data Analyst, AI Product Manager, AI UX Designer, AI Community Manager, AI Marketing Manager, AI QA Lead, AI Monetization Designer, AI Operations Director, AI User Operations, AI Business Operations
+
+*Note: Agent roles are fully customizable. Game development roles are just one example.*
+
+---
+
+## 💡 Design Principles
+
+### 1. Humans Decide, AI Executes
+You set the direction, AI does the work.
+
+### 2. Specialists Do Specialized Work
+24 AI agents each have their role, no overstepping.
+- Numerical problems → AI Numerical Designer
+- Code problems → AI Tech Lead
+- Art problems → AI Art Lead
+
+### 3. Transparent & Controllable
+All progress visible in real-time, intervene anytime.
+
+### 4. Result-Oriented
+No matter how complex the process, only results matter.
+
+---
+
+## 📊 Performance
+
+| Metric | Value |
+|--------|-------|
+| Code Size | 1119 lines |
+| Core Modules | 6 |
+| AI Roles | 24 (customizable) |
+| Efficiency Gain | 3-5x |
+| Target Teams | 5-20 person teams |
+
+### Efficiency Comparison
+
+| Task | Traditional | With Orchestra | Improvement |
+|------|-------------|----------------|-------------|
+| Game System Design | 2 weeks | 40 minutes | 200x+ |
+| Personnel Analysis | 1 day | 10 minutes | 100x+ |
+| BUG Collection | 2 hours/day | Auto-run | 100% saved |
+
+---
+
+## 🔧 Tech Stack
+
+- **Runtime**: Node.js
+- **AI Model**: Configurable (default: Alibaba Cloud Bailian qwen3.5-plus)
+- **Platform**: OpenClaw compatible
+- **Language**: JavaScript
+
+---
+
+## 📝 Usage
+
+### Basic
+
+```javascript
+const Orchestra = require('./orchestrator');
+
+// Create orchestration system
+const orchestra = new Orchestra({
+  model: 'qwen3.5-plus',
+  agents: ['ceo', 'producer', 'designer', 'programmer']
+});
+
+// Submit task
+const result = await orchestra.run('Design a gacha system');
+
+// Get result
+console.log(result.summary);
+```
+
+### Advanced
+
+```javascript
+// Custom agent routing
+orchestra.router.register('numerical', 'ai-number-designer');
+orchestra.router.register('code', 'ai-lead-programmer');
+
+// Progress callback
+orchestra.tracker.on('progress', (task, status) => {
+  console.log(`${task.name}: ${status}`);
+});
+
+// Result aggregation
+orchestra.aggregator.format = 'markdown';
+```
+
+---
+
+## 🎯 Use Cases
+
+### ✅ Suitable For
+- Game development teams (5-20 people)
+- Complex tasks requiring multi-role collaboration
+- Small teams wanting to improve efficiency
+- Users with OpenClaw experience
+
+### ❌ Not Suitable For
+- Solo developers (single AI assistant is enough)
+- Very large teams (need more complex enterprise solutions)
+- Non-game industries (need to adjust agent definitions)
+
+---
+
+## 📚 Related Projects
+
+- [Dream Memory System](https://github.com/JingWang-Star996/dream-system) - AI automated memory management
+- [OpenClaw](https://github.com/openclaw/openclaw) - AI assistant framework
+
+---
+
+## 🤝 Contributing
+
+Issues and Pull Requests are welcome!
+
+### Development Setup
+
+```bash
+# Clone repository
+git clone https://github.com/JingWang-Star996/orchestra.git
+cd orchestra
+
+# Install dependencies (if any)
+npm install
+
+# Run test
+node test.js
+```
+
+---
+
+## 📄 License
+
+**MIT License**
+
+```
+Copyright (c) 2026 JingWang
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+```
+
+---
+
+## 📬 Contact
+
+- **GitHub**: https://github.com/JingWang-Star996/orchestra
+- **Issues**: https://github.com/JingWang-Star996/orchestra/issues
+- **Author**: JingWang
+
+---
+
+**Made with ❤️ by JingWang for Multi-Agent Systems**
+
+**Last Updated**: 2026-04-02
+
+---
+
+---
+
 # 🎻 王鲸 AI 多 Agent 编排系统 (Orchestra)
 
 **一个人，指挥 24 个 AI 员工干活**
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Chinese](https://img.shields.io/badge/语言 - 中文-red.svg)](README.md)
 
 ---
 
@@ -11,7 +269,7 @@
 
 **Orchestra** 是一个多 Agent 编排系统，灵感来自管弦乐队的协作模式。
 
-就像指挥家协调小提琴、大提琴、鼓手演奏一首完整的曲子，Orchestra 协调 24 个 AI 岗位（AI CEO、AI 主策、AI 主程、AI 主美...）完成复杂的游戏开发任务。
+就像指挥家协调小提琴、大提琴、鼓手演奏一首完整的曲子，Orchestra 协调多个 AI 岗位（AI CEO、AI 主策、AI 主程、AI 主美...）完成复杂的游戏开发任务。
 
 **核心理念**：
 > 人做决策，AI 做执行。专业的人做专业的事，合起来是一首完整的曲子。
@@ -66,30 +324,27 @@
 
 ```
 orchestrator/
-├── planner.js      # 任务分解器（Task Planner）
-├── router.js       # Agent 路由器（Agent Router）
-├── tracker.js      # 进度跟踪器（Progress Tracker）
-├── aggregator.js   # 结果汇总器（Result Aggregator）
-├── error.js        # 错误处理（Error Handler）
-└── index.js        # 统一入口（Main Entry）
+├── planner.js      # 任务分解器
+├── router.js       # Agent 路由器
+├── tracker.js      # 进度跟踪器
+├── aggregator.js   # 结果汇总器
+├── error.js        # 错误处理
+└── index.js        # 统一入口
 ```
 
-### 24 个 AI 岗位
+### Agent 系统（24 个岗位，可自定义）
 
-**管理层**：
-- AI CEO、AI 制作人、AI 主策划
+**管理层**：AI CEO、AI 制作人、AI 主策划
 
-**策划岗**：
-- AI 数值策划、AI 系统策划、AI 关卡策划、AI 剧情策划、AI 战斗策划、AI 经济策划、AI 活动策划
+**策划岗**：AI 数值策划、AI 系统策划、AI 关卡策划、AI 剧情策划、AI 战斗策划、AI 经济策划、AI 活动策划
 
-**美术岗**：
-- AI 主美、AI 美术总监、AI 角色原画师
+**美术岗**：AI 主美、AI 美术总监、AI 角色原画师
 
-**程序岗**：
-- AI 主程、AI 客户端程序员、AI 服务器程序员、AI AI 技术总监
+**程序岗**：AI 主程、AI 客户端程序员、AI 服务器程序员、AI AI 技术总监
 
-**运营岗**：
-- AI 数据分析师、AI 产品经理、AI UX 设计师、AI 社区经理、AI 市场营销经理、AI QA 主管、AI 变现设计师、AI 运营总监、AI 用户运营、AI 商业化运营
+**运营岗**：AI 数据分析师、AI 产品经理、AI UX 设计师、AI 社区经理、AI 市场营销经理、AI QA 主管、AI 变现设计师、AI 运营总监、AI 用户运营、AI 商业化运营
+
+*注：Agent 岗位完全可自定义，游戏开发岗位只是示例之一。*
 
 ---
 
@@ -100,9 +355,6 @@ orchestrator/
 
 ### 2. 专业的人做专业的事
 24 个 AI 各司其职，不越界。
-- 数值问题→AI 数值策划
-- 代码问题→AI 主程
-- 美术问题→AI 主美
 
 ### 3. 透明可控
 所有进度实时可见，随时干预。
@@ -122,14 +374,6 @@ orchestrator/
 | 效率提升 | 3-5 倍 |
 | 适用团队 | 5-20 人游戏团队 |
 
-### 效率对比
-
-| 任务 | 传统方式 | 使用 Orchestra | 提升 |
-|------|---------|---------------|------|
-| 游戏方案设计 | 2 周 | 40 分钟 | 200 倍 + |
-| 人员分析报告 | 1 天 | 10 分钟 | 100 倍 + |
-| BUG 收集分析 | 2 小时/天 | 自动运行 | 100% 节省 |
-
 ---
 
 ## 🔧 技术栈
@@ -148,32 +392,25 @@ orchestrator/
 ```javascript
 const Orchestra = require('./orchestrator');
 
-// 创建编排系统
 const orchestra = new Orchestra({
   model: 'qwen3.5-plus',
   agents: ['ceo', 'producer', 'designer', 'programmer']
 });
 
-// 提交任务
 const result = await orchestra.run('设计一个抽卡系统');
-
-// 获取结果
 console.log(result.summary);
 ```
 
 ### 高级模式
 
 ```javascript
-// 自定义 Agent 路由
 orchestra.router.register('数值', 'ai-number-designer');
 orchestra.router.register('代码', 'ai-lead-programmer');
 
-// 进度回调
 orchestra.tracker.on('progress', (task, status) => {
   console.log(`${task.name}: ${status}`);
 });
 
-// 结果汇总
 orchestra.aggregator.format = 'markdown';
 ```
 
@@ -196,8 +433,8 @@ orchestra.aggregator.format = 'markdown';
 
 ## 📚 相关项目
 
-- [Dream 记忆整合系统](https://github.com/JingWang-Star996/dream-system) - AI 自动记忆管理
-- [OpenClaw](https://github.com/openclaw/openclaw) - AI 助手框架
+- [Dream 记忆整合系统](https://github.com/JingWang-Star996/dream-system)
+- [OpenClaw](https://github.com/openclaw/openclaw)
 
 ---
 
@@ -205,39 +442,11 @@ orchestra.aggregator.format = 'markdown';
 
 欢迎提交 Issue 和 Pull Request！
 
-### 开发环境搭建
-
-```bash
-# 克隆仓库
-git clone https://github.com/JingWang-Star996/orchestra.git
-cd orchestra
-
-# 安装依赖（如有）
-npm install
-
-# 运行测试
-node test.js
-```
-
 ---
 
 ## 📄 License
 
-**MIT License**
-
-```
-Copyright (c) 2026 JingWang【游戏人王鲸】
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-```
+MIT License
 
 ---
 
