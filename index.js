@@ -16,6 +16,17 @@ const AgentRouter = require('./router');
 const ProgressTracker = require('./tracker');
 const ResultAggregator = require('./aggregator');
 const ErrorHandler = require('./error');
+const OrchestraGateway = require('./gateway'); // 100% 版本新增
+
+// 导出 Gateway（100% 版本统一入口）
+module.exports = OrchestraGateway;
+module.exports.Orchestra = Orchestra; // 保持向后兼容
+module.exports.TaskPlanner = TaskPlanner;
+module.exports.AgentRouter = AgentRouter;
+module.exports.ProgressTracker = ProgressTracker;
+module.exports.ResultAggregator = ResultAggregator;
+module.exports.ErrorHandler = ErrorHandler;
+module.exports.Gateway = OrchestraGateway;
 
 class Orchestra {
   constructor(options = {}) {
