@@ -1,0 +1,46 @@
+{
+  "name": "@orchestra/ml-optimizer",
+  "version": "0.1.0",
+  "description": "Machine learning optimizer for Orchestra DecisionMatrix - automatic weight optimization based on historical data",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint . --ext .ts",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "orchestra",
+    "ml",
+    "optimizer",
+    "decision-matrix",
+    "weight-optimization",
+    "ab-testing"
+  ],
+  "author": "Orchestra Team",
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^9.4.3",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.9",
+    "@types/node": "^20.11.0",
+    "@types/uuid": "^9.0.7",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ]
+}

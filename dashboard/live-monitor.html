@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orchestra Agent 监控 - 实时 Dashboard</title>
+    <meta http-equiv="refresh" content="5">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 30px; font-size: 2em; }
+        .status-bar { background: rgba(0,255,136,0.1); padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 30px; }
+        .stat { background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; text-align: center; }
+        .stat-value { font-size: 2em; font-weight: bold; color: #00ff88; }
+        .stat-label { opacity: 0.8; margin-top: 8px; font-size: 0.9em; }
+        .section { margin-bottom: 25px; }
+        .section-title { font-size: 1.3em; margin-bottom: 15px; border-bottom: 2px solid #00ff88; padding-bottom: 10px; }
+        .agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; }
+        .agent-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+            padding: 15px;
+            border-left: 4px solid #00ff88;
+            transition: all 0.3s;
+        }
+        .agent-card:hover { transform: translateY(-3px); box-shadow: 0 5px 20px rgba(0,0,0,0.3); }
+        .agent-card.running { border-left-color: #1e90ff; animation: pulse 2s infinite; }
+        .agent-card.completed { border-left-color: #00ff88; }
+        .agent-card.failed { border-left-color: #ff4757; }
+        .agent-card.pending { border-left-color: #ffa502; }
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 5px rgba(30,144,255,0.3); }
+            50% { box-shadow: 0 0 15px rgba(30,144,255,0.6); }
+        }
+        .agent-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .agent-name { font-weight: bold; font-size: 1em; }
+        .agent-status { padding: 3px 10px; border-radius: 10px; font-size: 0.75em; font-weight: bold; }
+        .agent-status.running { background: #1e90ff; }
+        .agent-status.completed { background: #00ff88; color: #1a1a2e; }
+        .agent-status.failed { background: #ff4757; }
+        .agent-status.pending { background: #ffa502; }
+        .agent-desc { opacity: 0.8; font-size: 0.85em; margin: 8px 0; }
+        .agent-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+        .metric { background: rgba(0,0,0,0.2); padding: 8px; border-radius: 5px; text-align: center; }
+        .metric-value { font-size: 1.1em; font-weight: bold; color: #00ff88; }
+        .metric-label { font-size: 0.7em; opacity: 0.7; margin-top: 3px; }
+        .progress-bar { width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin-top: 10px; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #00ff88, #00b894); transition: width 0.3s; }
+        .last-update { text-align: center; opacity: 0.6; margin-top: 20px; font-size: 0.9em; }
+        .empty-state { text-align: center; padding: 50px; opacity: 0.5; grid-column: 1 / -1; }
+        .error-msg { background: rgba(255,71,87,0.1); padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #ff4757; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎻 Orchestra Agent 实时监控</h1>
+        
+        <div class="status-bar">
+            🟢 数据源：OpenClaw temp/orchestra-state.json | 每 5 秒自动刷新
+        </div>
+        
+        <div id="errorContainer"></div>
+        
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value" id="totalAgents">0</div>
+                <div class="stat-label">总 Agent 数</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="runningAgents">0</div>
+                <div class="stat-label">运行中</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="completedAgents">0</div>
+                <div class="stat-label">已完成</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="failedAgents">0</div>
+                <div class="stat-label">失败</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="totalTokens">0</div>
+                <div class="stat-label">总 Token</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="avgDuration">0s</div>
+                <div class="stat-label">平均耗时</div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2 class="section-title">📊 Agent 状态</h2>
+            <div class="agent-grid" id="agentGrid">
+                <div class="empty-state">正在加载 Agent 数据...</div>
+            </div>
+        </div>
+        
+        <div class="last-update">最后更新：<span id="lastUpdate">-</span></div>
+    </div>
+
+    <script>
+        let agents = [];
+        
+        function getStatusText(status) {
+            const map = {
+                'completed': '✅ 完成',
+                'running': '🔄 运行中',
+                'failed': '❌ 失败',
+                'pending': '⏳ 等待中',
+                'killed': '⏹️ 停止'
+            };
+            return map[status] || status;
+        }
+        
+        function formatDuration(ms) {
+            if (!ms || ms === 0) return '0s';
+            if (ms < 1000) return ms + 'ms';
+            if (ms < 60000) return (ms / 1000).toFixed(1) + 's';
+            return (ms / 60000).toFixed(1) + 'm';
+        }
+        
+        function formatNumber(num) {
+            return num.toLocaleString();
+        }
+        
+        function getProgress(agent) {
+            if (agent.status === 'completed') return 100;
+            if (agent.status === 'failed') return 0;
+            if (agent.progress?.tokenCount > 0) return Math.min(90, 30 + (agent.progress.tokenCount / 1000));
+            return 50;
+        }
+        
+        function renderAgents() {
+            const grid = document.getElementById('agentGrid');
+            
+            if (agents.length === 0) {
+                grid.innerHTML = '<div class="empty-state">暂无 Agent 数据<br><small>等待任务启动...</small></div>';
+                return;
+            }
+            
+            grid.innerHTML = agents.map(a => `
+                <div class="agent-card ${a.status}">
+                    <div class="agent-header">
+                        <span class="agent-name">${a.name}</span>
+                        <span class="agent-status ${a.status}">${getStatusText(a.status)}</span>
+                    </div>
+                    ${a.description ? `<div class="agent-desc">📝 ${a.description}</div>` : ''}
+                    <div class="agent-metrics">
+                        <div class="metric">
+                            <div class="metric-value">${formatNumber(a.progress?.tokenCount || 0)}</div>
+                            <div class="metric-label">Tokens</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">${formatNumber(a.progress?.toolUseCount || 0)}</div>
+                            <div class="metric-label">工具调用</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">${formatDuration(a.endTime ? (a.endTime - a.startTime) : (Date.now() - a.startTime))}</div>
+                            <div class="metric-label">耗时</div>
+                        </div>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${getProgress(a)}%"></div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function updateStats(stats) {
+            document.getElementById('totalAgents').textContent = stats.total || 0;
+            document.getElementById('runningAgents').textContent = stats.running || 0;
+            document.getElementById('completedAgents').textContent = stats.completed || 0;
+            document.getElementById('failedAgents').textContent = stats.failed || 0;
+            document.getElementById('totalTokens').textContent = formatNumber(stats.totalTokens || 0);
+            document.getElementById('avgDuration').textContent = formatDuration(stats.avgDuration || 0);
+        }
+        
+        function showError(msg) {
+            document.getElementById('errorContainer').innerHTML = `
+                <div class="error-msg">
+                    ⚠️ ${msg}
+                    <br><small>请确保已启动 HTTP 服务器并运行了 Orchestra 任务</small>
+                </div>
+            `;
+        }
+        
+        function clearError() {
+            document.getElementById('errorContainer').innerHTML = '';
+        }
+        
+        async function loadData() {
+            try {
+                // 从状态文件读取数据
+                const response = await fetch('../temp/orchestra-state.json?t=' + Date.now());
+                if (!response.ok) {
+                    throw new Error('无法读取状态文件');
+                }
+                const data = await response.json();
+                
+                agents = data.agents || [];
+                const stats = data.stats || {};
+                
+                renderAgents();
+                updateStats(stats);
+                clearError();
+                
+                document.getElementById('lastUpdate').textContent = new Date().toLocaleString();
+                
+                console.log('[Dashboard] 数据已更新:', {
+                    total: agents.length,
+                    running: stats.running || 0
+                });
+                
+            } catch (err) {
+                console.error('[Dashboard] 加载数据失败:', err);
+                showError('无法加载数据：' + err.message);
+                
+                // 使用模拟数据演示
+                agents = [];
+                renderAgents();
+            }
+        }
+        
+        // 初始加载
+        loadData();
+        
+        // 每 5 秒自动刷新
+        setInterval(loadData, 5000);
+    </script>
+</body>
+</html>

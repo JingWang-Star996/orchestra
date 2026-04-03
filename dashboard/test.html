@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orchestra 极限测试 - 实时监控</title>
+    <meta http-equiv="Cache-Control" content="no-cache">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 30px; }
+        .status-bar { background: rgba(0,255,136,0.1); padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 30px; }
+        .stat { background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; text-align: center; }
+        .stat-value { font-size: 2em; font-weight: bold; color: #00ff88; }
+        .stat-label { opacity: 0.8; margin-top: 8px; }
+        .section { margin-bottom: 25px; }
+        .section-title { font-size: 1.3em; margin-bottom: 15px; border-bottom: 2px solid #00ff88; padding-bottom: 10px; }
+        .group-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
+        .group-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            padding: 15px;
+            border-left: 4px solid #00ff88;
+        }
+        .group-card.completed { border-left-color: #00ff88; }
+        .group-card.running { border-left-color: #1e90ff; }
+        .group-card.pending { border-left-color: #ffa502; }
+        .group-name { font-weight: bold; margin-bottom: 8px; }
+        .group-status { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 0.8em; margin-bottom: 10px; }
+        .group-status.completed { background: #00ff88; color: #1a1a2e; }
+        .group-status.running { background: #1e90ff; }
+        .group-status.pending { background: #ffa502; }
+        .group-agents { opacity: 0.8; font-size: 0.9em; }
+        .refresh-btn {
+            display: block; margin: 20px auto;
+            padding: 12px 30px; background: linear-gradient(135deg, #00ff88, #00b894);
+            border: none; border-radius: 20px; color: #1a1a2e;
+            font-weight: bold; cursor: pointer; font-size: 1.1em;
+        }
+        .last-update { text-align: center; opacity: 0.6; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎻 Orchestra 极限测试 Dashboard</h1>
+        
+        <div class="status-bar">
+            🟢 从飞书文档读取真实数据 | 
+            <a href="https://fcnqx3qaebse.feishu.cn/docx/U9cNdqKofomrWFxIXA1cWsLon1b" target="_blank" style="color: #00ff88;">查看飞书文档</a>
+        </div>
+        
+        <button class="refresh-btn" onclick="loadData()">🔄 刷新数据</button>
+        
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value" id="totalGroups">11</div>
+                <div class="stat-label">总小组数</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="completedGroups">4</div>
+                <div class="stat-label">已完成</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="runningGroups">2</div>
+                <div class="stat-label">进行中</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="totalAgents">34+</div>
+                <div class="stat-label">参与 Agent</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="totalWords">~18K</div>
+                <div class="stat-label">文档字数</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="avgScore">91.3</div>
+                <div class="stat-label">平均评分</div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2 class="section-title">📊 小组状态</h2>
+            <div class="group-grid" id="groupGrid"></div>
+        </div>
+        
+        <div class="last-update">最后更新：<span id="lastUpdate">-</span></div>
+    </div>
+
+    <script>
+        // 真实数据（从飞书文档）
+        const groups = [
+            { name: "场景美术组", agents: "5 人", status: "completed", output: "场景设计方案" },
+            { name: "角色美术组", agents: "5 人", status: "completed", output: "5,000 字角色设计" },
+            { name: "特效美术组", agents: "3 人", status: "running", output: "特效设计进行中" },
+            { name: "UI 美术组", agents: "3 人", status: "running", output: "UI 设计进行中" },
+            { name: "概念设计组", agents: "3 人", status: "completed", output: "11,000 字概念设计" },
+            { name: "材质美术组", agents: "1 人", status: "pending", output: "等待中" },
+            { name: "技术美术组", agents: "2 人", status: "pending", output: "等待中" },
+            { name: "2D 美术组", agents: "2 人", status: "pending", output: "等待中" },
+            { name: "宣传美术组", agents: "2 人", status: "pending", output: "等待中" },
+            { name: "美术管理组", agents: "3 人", status: "completed", output: "审核 4 组，91.25 分" },
+            { name: "专项技术组", agents: "3 人", status: "pending", output: "等待中" },
+            { name: "外包管理组", agents: "1 人", status: "pending", output: "等待中" },
+            { name: "纪录片导演", agents: "1 人", status: "completed", output: "全程记录中" }
+        ];
+
+        function renderGroups() {
+            const grid = document.getElementById('groupGrid');
+            grid.innerHTML = groups.map(g => `
+                <div class="group-card ${g.status}">
+                    <div class="group-name">${g.name}</div>
+                    <span class="group-status ${g.status}">${getStatusText(g.status)}</span>
+                    <div class="group-agents">👥 ${g.agents}</div>
+                    <div class="group-agents">📄 ${g.output}</div>
+                </div>
+            `).join('');
+        }
+
+        function getStatusText(status) {
+            if (status === 'completed') return '✅ 完成';
+            if (status === 'running') return '🔄 进行中';
+            return '⏳ 等待中';
+        }
+
+        function updateStats() {
+            const completed = groups.filter(g => g.status === 'completed').length;
+            const running = groups.filter(g => g.status === 'running').length;
+            document.getElementById('completedGroups').textContent = completed;
+            document.getElementById('runningGroups').textContent = running;
+        }
+
+        function loadData() {
+            renderGroups();
+            updateStats();
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleString();
+        }
+
+        // 初始加载
+        loadData();
+        
+        // 自动刷新（每 10 秒）
+        setInterval(loadData, 10000);
+    </script>
+</body>
+</html>

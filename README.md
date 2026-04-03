@@ -1,35 +1,24 @@
-# 🎻 Orchestra - 多 Agent 编排系统
+# Orchestra - 多 Agent 协作框架
 
-**一个人，指挥 27 个 AI 员工干活**
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/版本 -1.0-blue.svg)](https://github.com/JingWang-Star996/orchestra)
-[![完成度](https://img.shields.io/badge/完成度 -85%25-green.svg)](https://github.com/JingWang-Star996/orchestra)
+**版本**: v2.0.0 (P2 完成)  
+**状态**: ✅ P0/P1/P2 全部完成  
+**最后更新**: 2026-04-03
 
 ---
 
-## 📖 简介
+## 📋 概述
 
-**Orchestra** 是一个完整的多 Agent 编排系统，灵感来自管弦乐队的协作模式。
+Orchestra 是一个基于 Claude Coordinator 模式的多 Agent 协作框架，深度集成 OpenClaw API。
 
-就像指挥家协调小提琴、大提琴、鼓手演奏一首完整的曲子，Orchestra 协调 27 个 AI 岗位（AI CEO、AI 制作人、AI 主策、AI 主程、AI 主美...）完成复杂的游戏开发任务。
-
-**核心理念**：
-> 人做决策，AI 执行。专业的人做专业的事，合起来是一首完整的曲子。
-
----
-
-## ✨ 核心功能
-
-| 功能 | 说明 | 状态 |
-|------|------|------|
-| 🎯 任务自动分解 | 1 个复杂需求→N 个可执行的子任务 | ✅ |
-| 🤖 Agent 智能路由 | 根据任务类型自动分配给对应的 AI | ✅ |
-| 📊 进度实时跟踪 | 实时监控所有子任务状态 | ✅ |
-| 📋 结果自动汇总 | 所有 AI 的输出自动整合 | ✅ |
-| 🔧 工具权限管理 | 分级工具权限（简单/完整/管理） | ✅ |
-| ♻️ 灵活恢复 | 错误重试、继续、新建 Worker | ✅ |
-| 📝 知识共享 | Scratchpad 跨 Worker 知识共享 | ✅ |
+**核心价值**：
+- 🎯 四阶段工作流 - Research → Synthesis → Implementation → Verification
+- 🤖 多 Worker 并行 - 支持多个子代理同时工作
+- 📦 持久化支持 - 通知历史、Worker 状态自动保存
+- 🔄 智能重试 - 指数退避 + 随机抖动
+- 🔐 权限控制 - ACL 访问控制列表
+- 📊 监控 Dashboard - Worker 状态可视化
+- 🧠 ML 优化 - 决策权重自动调整
+- 🌐 分布式支持 - 多实例部署
 
 ---
 
@@ -38,263 +27,482 @@
 ### 安装
 
 ```bash
-git clone https://github.com/JingWang-Star996/orchestra.git
-cd orchestra
+npm install orchestra
 ```
 
-### 基本用法
+### 基础示例
 
-```javascript
-const Orchestra = require('./orchestra');
+```typescript
+import { FourPhaseWorkflow } from 'orchestra';
 
-// 创建编排系统
-const orchestra = new Orchestra({
-  model: 'qwen3.5-plus',
-  agents: ['ceo', 'producer', 'designer', 'programmer']
+// 创建工作流
+const workflow = new FourPhaseWorkflow({
+  name: 'Bug 修复工作流',
+  description: '修复用户登录问题'
 });
 
-// 提交任务
-const result = await orchestra.run('设计一个抽卡系统');
+// 执行工作流
+const result = await workflow.execute({
+  bugReport: '用户点击登录按钮后页面无响应',
+  codebasePath: '/src/auth',
+  searchQueries: ['login', 'authentication'],
+  testCommand: 'npm test -- auth'
+});
 
-// 获取结果
 console.log(result.summary);
 ```
 
-### 命令行
+---
 
-```bash
-# 测试所有模块
-node test-all.js
+## 📊 开发进展
 
-# 运行游戏设计工作流
-node gameDesignWorkflow.js
+### ✅ P0 阶段：OpenClaw API 集成（完成）
 
-# 运行工具系统测试
-node toolSystem.js
-```
+| 模块 | 状态 | 说明 |
+|------|------|------|
+| WorkerManager | ✅ 完成 | sessions_spawn + process API 集成 |
+| Gateway | ✅ 完成 | 单 Agent + 编辑部工作流 + 游戏设计工作流 |
+| ParallelExecutor | ✅ 完成 | HTTPS API 调用 |
+
+**核心能力**：
+- ✅ 真实子代理会话创建
+- ✅ 消息发送与轮询
+- ✅ Token 估算
+- ✅ 超时控制
+- ✅ 降级支持
 
 ---
 
-## 📁 系统架构
+### ✅ P1 阶段：系统优化（完成）
 
-### 核心模块
+| 模块 | 状态 | 说明 |
+|------|------|------|
+| 持久化支持 | ✅ 完成 | TaskNotification + WorkerManager 文件存储 |
+| 重试机制 | ✅ 完成 | 指数退避 + 随机抖动 |
+| 权限控制 | ✅ 完成 | ACL 访问控制列表 |
+| 集成测试 | ⚠️ 部分 | CLI 测试可用 |
 
-```
-orchestra/
-├── parallelExecutor.js      # 异步并行执行引擎
-├── taskNotification.js      # 任务通知系统（JSON+XML）
-├── workerManager.js         # Worker 生命周期管理
-├── decisionMatrix.js        # Continue vs. Spawn 决策矩阵
-├── scratchpad.js            # 跨 Worker 知识共享系统
-├── gateway.js               # Gateway 统一入口
-├── gameDesignWorkflow.js    # 游戏设计 27 人工作流
-├── toolSystem.js            # 工具权限管理系统
-├── flexibleRecovery.js      # 灵活恢复系统
-├── test-all.js              # 批量测试脚本
-└── ...
-```
-
-### 27 个 AI 岗位
-
-**管理层（2 人）**：
-- AI CEO、AI 制作人
-
-**策划岗（8 人）**：
-- AI 主策划、AI 数值策划、AI 系统策划、AI 关卡策划、AI 剧情策划、AI 战斗策划、AI 经济策划、AI 活动策划
-
-**美术岗（3 人）**：
-- AI 主美、AI 美术总监、AI 角色原画师
-
-**程序岗（4 人）**：
-- AI 主程、AI 客户端程序员、AI 服务器程序员、AI AI 技术总监
-
-**运营岗（10 人）**：
-- AI 数据分析师、AI 产品经理、AI UX 设计师、AI 社区经理、AI 市场营销经理、AI QA 主管、AI 变现设计师、AI 运营总监、AI 用户运营、AI 商业化运营
+**核心能力**：
+- ✅ 内存/文件双存储模式
+- ✅ 自动保存与加载
+- ✅ 搜索与统计功能
+- ✅ 错误分类（可重试 vs 不可重试）
+- ✅ 权限级别（NONE/READ/WRITE/SHARE/ADMIN）
 
 ---
 
-## 🔄 工作流程
+### ✅ P2 阶段：功能扩展（完成）
 
-### 四阶段流程
+| 模块 | 状态 | 说明 |
+|------|------|------|
+| 监控 Dashboard | ✅ 完成 | Web UI + Worker 状态可视化 |
+| ML 优化 | ✅ 完成 | 决策权重自动调整 |
+| 分布式支持 | ✅ 完成 | 多实例部署 + 消息队列 |
 
-```
-Phase 1: Research（研究）
-  ↓
-Workers 并行执行：调查代码库、查找文件、理解问题
-
-Phase 2: Synthesis（综合）
-  ↓
-Coordinator 负责：阅读发现、理解问题、制定实现规范
-
-Phase 3: Implementation（实现）
-  ↓
-Workers 并行执行：根据规范进行修改、提交
-
-Phase 4: Verification（验证）
-  ↓
-Workers 并行执行：测试修改是否有效
-```
+**核心能力**：
+- ✅ 实时监控 Worker 状态
+- ✅ 性能指标收集与告警
+- ✅ 决策历史学习与优化
+- ✅ 多实例数据同步
+- ✅ RabbitMQ/Kafka 集成
 
 ---
 
-## 📊 性能指标
+## 🏗️ 架构设计
 
-| 指标 | 数值 |
-|------|------|
-| 核心模块数 | 9 个 |
-| 代码量 | 约 77000 字 |
-| AI 岗位数 | 27 个 |
-| 测试通过率 | 89% |
-| 完成度 | 85% |
+### 四阶段工作流
 
-### 效率对比
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│  Phase 1    │    │  Phase 2    │    │  Phase 3    │    │  Phase 4    │
+│  Research   │ -> │  Synthesis  │ -> │  Implementation │ -> │ Verification │
+│  (Workers)  │    │ (Coordinator)│   │  (Workers)  │    │  (Workers)  │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+```
 
-| 任务 | 传统方式 | Orchestra | 提升 |
-|------|---------|-----------|------|
-| 游戏方案设计 | 2 周 | 40 分钟 | 200 倍 + |
-| 人员分析报告 | 1 天 | 10 分钟 | 100 倍 + |
-| BUG 收集分析 | 2 小时/天 | 自动运行 | 100% 节省 |
+### 核心组件
+
+| 组件 | 职责 | 阶段 |
+|------|------|------|
+| **Worker** | 执行具体任务 | Research, Implementation, Verification |
+| **Coordinator** | 综合信息、制定规范 | Synthesis |
+| **Scratchpad** | 阶段间数据共享 | 所有阶段 |
+| **WorkerManager** | Worker 生命周期管理 | 全局 |
+| **TaskNotification** | 任务通知系统 | 全局 |
+| **Gateway** | 请求路由与编排 | 全局 |
 
 ---
 
-## 🎯 对比 Claude Code Coordinator
+## 📦 核心功能
 
-| 功能 | Claude Code | Orchestra | 状态 |
-|------|-----------|-----------|------|
-| 异步并行执行 | ✅ | ✅ | ✅ 对等 |
-| 任务通知系统 | ✅ XML | ✅ JSON+XML | ✅ **超越** |
-| Worker 管理 | ✅ | ✅ | ✅ 对等 |
-| Continue vs. Spawn | ✅ | ✅ | ✅ 对等 |
-| Scratchpad 知识共享 | ✅ | ✅ | ✅ 对等 |
-| 并行工作流 | ✅ | ✅ 27 人 | ✅ **超越** |
-| 工具系统 | ✅ | ✅ | ✅ 对等 |
-| 灵活恢复 | ✅ | ✅ | ✅ 对等 |
+### 1. WorkerManager
 
----
+管理 Worker 的创建、执行、停止。
 
-## 🧪 测试
+```typescript
+const manager = new WorkerManager({
+  storage: 'file',              // 'memory' | 'file'
+  storagePath: './temp/workers',
+  maxWorkers: 10,
+  verbose: true
+});
 
-### 运行所有测试
+// 创建 Worker
+const { workerId } = await manager.create({
+  description: '前端开发专家',
+  prompt: '你是资深前端工程师...',
+  timeoutSeconds: 3600
+});
 
-```bash
-node test-all.js
+// 发送消息
+const result = await manager.continue(workerId, '请帮我创建组件');
+
+// 停止 Worker
+await manager.stop({ task_id: workerId, reason: '任务完成' });
 ```
 
-### 预期输出
+### 2. TaskNotification
 
-```
-=== Orchestra 全模块测试 ===
+结构化任务通知系统。
 
-1. 测试 parallelExecutor...
-   ✅ parallelExecutor OK
-2. 测试 taskNotification...
-   ✅ taskNotification OK
-3. 测试 workerManager...
-   ✅ workerManager OK
-4. 测试 decisionMatrix...
-   ✅ decisionMatrix OK
-5. 测试 scratchpad...
-   ✅ scratchpad OK
-6. 测试 gameDesignWorkflow...
-   ✅ gameDesignWorkflow OK
-7. 测试 toolSystem...
-   ✅ toolSystem OK
-8. 测试 flexibleRecovery...
-   ✅ flexibleRecovery OK
-9. 测试 gateway...
-   ✅ gateway OK
+```typescript
+const manager = new TaskNotificationManager({
+  storage: 'file',
+  storagePath: './temp/notifications',
+  maxHistorySize: 1000
+});
 
-=== 测试结果汇总 ===
-通过：9 个
-失败：0 个
-通过率：100%
+// 发送通知
+await manager.send({
+  taskId: 'agent-x7q',
+  status: 'completed',
+  summary: '研究完成',
+  result: '找到 3 个关键文件',
+  usage: { totalTokens: 1234, toolUses: 5, durationMs: 5000 }
+});
 
-🎉 所有模块测试通过！
+// 搜索通知
+const results = manager.search('任务完成', {
+  status: 'completed',
+  limit: 100
+});
+
+// 获取统计
+const stats = manager.getStatistics();
 ```
 
----
+### 3. 重试机制
 
-## 📚 使用示例
+指数退避 + 随机抖动。
 
-### 示例 1：游戏系统设计
+```typescript
+const { withRetry, pollWithRetry, createRetryableAPI } = require('./retryUtils');
 
-```javascript
-const Orchestra = require('./orchestra');
-const orchestra = new Orchestra({ verbose: true });
+// 基础重试
+const result = await withRetry(
+  () => process({ action: 'send-keys', sessionId, text }),
+  { maxRetries: 3 }
+);
 
-const result = await orchestra.run('设计一个宠物养成系统');
-console.log(result);
+// 轮询重试
+const pollResult = await pollWithRetry(
+  () => process({ action: 'poll', sessionId }),
+  { timeoutMs: 60000, intervalMs: 2000 }
+);
+
+// 创建可重试 API
+const processWithRetry = createRetryableAPI(process, { maxRetries: 3 });
 ```
 
-### 示例 2：代码 Review
+### 4. 权限控制
 
-```javascript
-const result = await orchestra.run('review 这个战斗模块');
-console.log(result.summary);
-```
+ACL 访问控制列表。
 
-### 示例 3：团队协作
+```typescript
+const { AccessControlManager, PermissionLevel } = require('./accessControl');
 
-```javascript
-// 使用编辑部工作流
-const workflow = require('./gameDesignWorkflow');
-const result = await workflow.execute('设计一款竖屏肉鸽网游');
-console.log(result.deliverables);
-```
+const acm = new AccessControlManager();
 
----
+// 初始化任务 ACL
+acm.initialize('task-001', 'worker-owner');
 
-## 🛠️ 开发
+// 授予权限
+acm.grantPermission(
+  'task-001',
+  'worker-collaborator',
+  [PermissionLevel.READ, PermissionLevel.WRITE],
+  'worker-owner',
+  Date.now() + 3600000  // 1 小时后过期
+);
 
-### 添加新的 AI 岗位
-
-```javascript
-// 在 router.js 中添加
-this.taskTypeMap['新领域'] = 'AI 新岗位';
-```
-
-### 自定义工作流
-
-```javascript
-class CustomWorkflow {
-  async execute(brief) {
-    // 自定义工作流逻辑
-  }
+// 检查权限
+if (acm.hasPermission('task-001', 'worker-collaborator', 'read')) {
+  // 允许读取
 }
 ```
 
 ---
 
-## 📄 License
+## 🎯 使用场景
 
-**MIT License**
+### 场景 1: Bug 修复
 
+```typescript
+const workflow = new FourPhaseWorkflow({
+  name: '支付 Bug 修复',
+  description: '修复支付失败问题'
+});
+
+await workflow.execute({
+  bugReport: '用户支付时出现 500 错误',
+  codebasePath: '/src/payment',
+  searchQueries: ['payment', 'checkout', 'error'],
+  errorLogs: 'Error: Payment gateway timeout...',
+  testCommand: 'npm test -- payment'
+});
 ```
-Copyright (c) 2026 JingWang
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+### 场景 2: 新功能开发
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+```typescript
+const workflow = new FourPhaseWorkflow({
+  name: '用户评论功能',
+  description: '实现文章评论系统'
+});
+
+await workflow.execute({
+  featureRequest: '用户需要对文章进行评论、点赞、回复',
+  codebasePath: '/src/comment',
+  searchQueries: ['comment', 'reply', 'like'],
+  testCommand: 'npm test -- comment'
+});
+```
+
+### 场景 3: 代码重构
+
+```typescript
+const workflow = new FourPhaseWorkflow({
+  name: '认证模块重构',
+  description: '提升认证模块可维护性',
+  timeout: 60 * 60 * 1000  // 1 小时
+});
+
+await workflow.execute({
+  refactorGoal: '将认证逻辑拆分为独立服务',
+  codebasePath: '/src/auth',
+  searchQueries: ['auth', 'token', 'session'],
+  testCommand: 'npm test -- auth'
+});
 ```
 
 ---
 
-## 📬 联系方式
+## 📊 输出结果
 
-- **GitHub**: https://github.com/JingWang-Star996/orchestra
-- **Issues**: https://github.com/JingWang-Star996/orchestra/issues
-- **作者**: JingWang【游戏人王鲸】
+```typescript
+interface WorkflowResult {
+  success: boolean;
+  phases: {
+    research?: {
+      findings: string[];
+      filesAnalyzed: string[];
+      issues: string[];
+    };
+    synthesis?: {
+      problemStatement: string;
+      rootCause?: string;
+      solutionSpec: string;
+      affectedFiles: string[];
+      testPlan: string;
+    };
+    implementation?: {
+      filesModified: string[];
+      changesSummary: string;
+    };
+    verification?: {
+      testsRun: number;
+      testsPassed: number;
+      testsFailed: number;
+      verificationReport: string;
+    };
+  };
+  summary: string;
+}
+```
 
 ---
 
-**Made with ❤️ by JingWang for Multi-Agent Systems**
+## 🔧 高级用法
 
-**最后更新**：2026-04-03  
-**版本**：1.0  
-**完成度**：85%
+### 自定义 Worker 行为
+
+```typescript
+const customWorker = new Worker({
+  id: 'specialist-worker',
+  systemPrompt: '你是一位资深的前端工程师，专注于 React 性能优化',
+  maxRetries: 5
+});
+```
+
+### 手动控制阶段
+
+```typescript
+const workflow = new FourPhaseWorkflow({ name: 'Custom' });
+
+// 分阶段执行
+const research = await workflow.executeResearchPhase(context);
+const synthesis = await workflow.executeSynthesisPhase(context, research);
+const implementation = await workflow.executeImplementationPhase(context, synthesis);
+const verification = await workflow.executeVerificationPhase(context, implementation);
+```
+
+### 并发控制
+
+```typescript
+import { executeWithConcurrency } from './core';
+
+const results = await executeWithConcurrency(
+  tasks,
+  3,  // 最多 3 个并发
+  async (task) => await worker.execute(task, scratchpad)
+);
+```
+
+---
+
+## 🏗️ 架构设计
+
+### 设计原则
+
+1. **阶段分离**: 每个阶段职责单一
+2. **并行执行**: Research/Implementation/Verification 支持并行
+3. **数据共享**: Scratchpad 实现阶段间数据传递
+4. **错误恢复**: Worker 支持重试机制
+5. **可扩展**: 易于添加新任务类型
+
+### 数据流
+
+```
+Context → Research → Scratchpad → Synthesis → Scratchpad → Implementation → Scratchpad → Verification → Result
+              ↓                        ↓                        ↓                        ↓
+          Workers                  Coordinator              Workers                  Workers
+```
+
+---
+
+## 📝 最佳实践
+
+### 1. 明确任务上下文
+
+```typescript
+// ✅ 好的做法
+await workflow.execute({
+  bugReport: '详细描述问题现象、复现步骤、期望行为',
+  codebasePath: '/src/specific-module',
+  searchQueries: ['specific-keyword-1', 'specific-keyword-2']
+});
+
+// ❌ 避免过于模糊
+await workflow.execute({
+  bugReport: '有问题',
+  codebasePath: '/src'
+});
+```
+
+### 2. 合理设置超时
+
+```typescript
+// Bug 修复：30 分钟
+const bugFix = new FourPhaseWorkflow({ timeout: 30 * 60 * 1000 });
+
+// 代码重构：1-2 小时
+const refactor = new FourPhaseWorkflow({ timeout: 90 * 60 * 1000 });
+
+// 新功能开发：1 小时
+const feature = new FourPhaseWorkflow({ timeout: 60 * 60 * 1000 });
+```
+
+### 3. 利用 Scratchpad 追踪进度
+
+```typescript
+scratchpad.log('开始研究阶段');
+scratchpad.set('metrics:startTime', Date.now());
+
+const duration = Date.now() - scratchpad.get('metrics:startTime');
+scratchpad.set('metrics:researchDuration', duration);
+```
+
+---
+
+## 🔍 调试技巧
+
+### 启用详细日志
+
+```typescript
+const workerManager = new WorkerManager({
+  verbose: true,
+  maxWorkers: 10
+});
+```
+
+### 检查 Worker 状态
+
+```typescript
+const status = workerManager.getWorkerStatus('agent-x7q');
+console.log(status);
+
+const allStatus = workerManager.getAllStatus();
+console.log(allStatus);
+```
+
+### 导出历史记录
+
+```typescript
+const history = workerManager.exportHistory();
+console.log(JSON.stringify(history, null, 2));
+```
+
+---
+
+## 📚 相关文档
+
+- [docs/OPENCLAW-INTEGRATION.md](./docs/OPENCLAW-INTEGRATION.md) - OpenClaw API 集成指南
+- [docs/P1-COMPLETION-REPORT.md](./docs/P1-COMPLETION-REPORT.md) - P1 阶段完成报告
+- [docs/P2-SUMMARY.md](./docs/P2-SUMMARY.md) - P2 阶段总结
+- [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) - 部署指南
+- [docs/USER-MANUAL.md](./docs/USER-MANUAL.md) - 用户手册
+- [USAGE.md](./USAGE.md) - 详细使用指南
+- [QUICKSTART.md](./QUICKSTART.md) - 快速开始
+
+---
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+### 如何贡献
+
+1. Fork 仓库
+2. 创建功能分支
+3. 提交更改
+4. 推送到分支
+5. 创建 Pull Request
+
+### 报告问题
+
+- 使用 GitHub Issues
+- 包含版本信息
+- 提供复现步骤
+- 附上错误日志
+
+---
+
+## 📄 许可证
+
+MIT License
+
+---
+
+**维护者**: AI CTO  
+**联系方式**: orchestra-team@example.com  
+**最后更新**: 2026-04-03

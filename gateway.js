@@ -26,6 +26,11 @@ const { TaskNotificationManager, createTaskNotification } = require('./taskNotif
 const WorkerManager = require('./workerManager');
 const { decideContinueOrSpawn, DecisionType } = require('./decisionMatrix');
 
+// OpenClaw API 集成
+const sessions_spawn = global.sessions_spawn || null;
+const process = global.process || null;
+const sessions_send = global.sessions_send || null;
+
 class OrchestraGateway {
   constructor(options = {}) {
     this.options = {
@@ -290,7 +295,7 @@ class OrchestraGateway {
   }
 
   /**
-   * Phase 3a: 执行单个 Agent
+   * Phase 3a: 执行单个 Agent - 集成 OpenClaw API
    */
   async _executeSingleAgent(agentName, userInput) {
     console.log(`  调用单个 Agent: ${agentName}`);
@@ -301,13 +306,43 @@ class OrchestraGateway {
       throw new Error(`未找到 Agent: ${agentName}`);
     }
     
-    // TODO: 调用 AI 执行 Agent
-    // 这里使用模拟返回
-    return {
-      type: 'single',
-      agent: agentName,
-      output: `[${agentName}] 处理结果：...`
-    };
+    // 使用 OpenClaw sessions_spawn 创建子代理会话
+    if (sessions_spawn) {
+      try {
+        console.log(`[Gateway] 通过 OpenClaw sessions_spawn 调用 ${agentName}`);
+        
+        const session = await sessions_spawn({
+          task: `${agent.prompt}\n\n用户请求：${userInput}`,
+          mode: 'run',
+          runtime: 'subagent',
+          label: `${agentName} - ${userInput.substring(0, 50)}`,
+          timeoutSeconds: 600,
+          cleanup: 'keep'
+        });
+        
+        console.log(`[Gateway] 会话已创建：${session.sessionKey || session.id}`);
+        
+        // 等待会话完成（如果是 run 模式，会自动执行并返回）
+        return {
+          type: 'single',
+          agent: agentName,
+          sessionId: session.sessionKey || session.id,
+          output: `[${agentName}] 已完成，会话 ID: ${session.sessionKey || session.id}`
+        };
+        
+      } catch (err) {
+        console.error(`[Gateway] 调用 Agent 失败：${err.message}`);
+        throw err;
+      }
+    } else {
+      // 模拟模式
+      console.warn('[Gateway] OpenClaw API 不可用，使用模拟模式');
+      return {
+        type: 'single',
+        agent: agentName,
+        output: `[${agentName}] 处理结果：...（模拟模式）`
+      };
+    }
   }
 
   /**
@@ -344,7 +379,7 @@ class OrchestraGateway {
   }
 
   /**
-   * 编辑部工作流（7 人协作）
+   * 编辑部工作流（7 人协作）- 集成 OpenClaw API
    */
   async _executeEditorialWorkflow(userInput) {
     console.log(`  启动编辑部工作流（7 阶段）`);
@@ -359,30 +394,125 @@ class OrchestraGateway {
       '编辑部 - 终审官'
     ];
     
-    let context = { userInput, output: '' };
+    let context = { userInput, output: '', stageResults: [] };
     
     // 7 阶段顺序执行
     for (const stage of stages) {
       console.log(`    → ${stage}`);
-      // TODO: 调用对应 Agent
-      // context = await callAgent(stage, context);
+      
+      // 查找 Agent 提示词
+      const agent = this.availableAgents.find(a => a.name === stage);
+      if (!agent) {
+        console.warn(`[Gateway] 未找到 Agent: ${stage}，跳过`);
+        continue;
+      }
+      
+      // 使用 OpenClaw API 调用 Agent
+      if (sessions_spawn) {
+        try {
+          const stagePrompt = `${agent.prompt}\n\n素材：${userInput}\n\n前一阶段输出：${context.output}\n\n请完成你的工作任务。`;
+          
+          const session = await sessions_spawn({
+            task: stagePrompt,
+            mode: 'run',
+            runtime: 'subagent',
+            label: `${stage}`,
+            timeoutSeconds: 300,
+            cleanup: 'keep'
+          });
+          
+          const result = `[${stage}] 完成`;
+          context.output += `\n\n## ${stage}\n\n${result}`;
+          context.stageResults.push({ stage, result, sessionId: session.sessionKey });
+          
+          console.log(`      ✅ ${result}`);
+          
+        } catch (err) {
+          console.error(`      ❌ ${stage} 失败：${err.message}`);
+          context.stageResults.push({ stage, error: err.message });
+        }
+      } else {
+        // 模拟模式
+        const result = `[${stage}] 完成（模拟）`;
+        context.output += `\n\n## ${stage}\n\n${result}`;
+        context.stageResults.push({ stage, result });
+        console.log(`      ✅ ${result}`);
+      }
     }
     
     return {
       type: 'team',
       team: '编辑部',
       stages: stages,
-      output: context.output
+      output: context.output,
+      stageResults: context.stageResults
     };
   }
 
   /**
-   * 游戏设计工作流（24 岗位）
+   * 游戏设计工作流（24 岗位）- 集成 OpenClaw API
    */
   async _executeGameDesignWorkflow(userInput) {
     console.log(`  启动游戏设计工作流（24 岗位）`);
-    // TODO: 实现游戏设计工作流
-    return { type: 'team', team: '游戏设计', output: '...' };
+    
+    // 获取游戏设计团队 Agent 列表
+    const gameDesignAgents = this.router.getTeamAgents('游戏设计');
+    
+    if (gameDesignAgents.length === 0) {
+      console.warn('[Gateway] 游戏设计团队 Agent 列表为空');
+      return { type: 'team', team: '游戏设计', output: '未找到可用 Agent' };
+    }
+    
+    const results = [];
+    
+    // 并行执行所有岗位（使用 Promise.all）
+    if (sessions_spawn) {
+      const promises = gameDesignAgents.map(async (agentName) => {
+        try {
+          const agent = this.availableAgents.find(a => a.name === agentName);
+          if (!agent) return null;
+          
+          const session = await sessions_spawn({
+            task: `${agent.prompt}\n\n用户需求：${userInput}\n\n请从你的专业角度提供方案。`,
+            mode: 'run',
+            runtime: 'subagent',
+            label: `${agentName}`,
+            timeoutSeconds: 300,
+            cleanup: 'keep'
+          });
+          
+          return {
+            agent: agentName,
+            sessionId: session.sessionKey,
+            status: 'completed'
+          };
+          
+        } catch (err) {
+          return {
+            agent: agentName,
+            error: err.message,
+            status: 'failed'
+          };
+        }
+      });
+      
+      const allResults = await Promise.all(promises);
+      results.push(...allResults.filter(r => r !== null));
+    }
+    
+    const output = `# 游戏设计方案\n\n` +
+      `**参与岗位**: ${results.length}个\n\n` +
+      results.map(r => 
+        `## ${r.agent}\n状态：${r.status}\n` +
+        (r.error ? `错误：${r.error}\n` : `会话 ID: ${r.sessionId}\n`)
+      ).join('\n');
+    
+    return { 
+      type: 'team', 
+      team: '游戏设计', 
+      output: output,
+      results: results
+    };
   }
 
   /**

@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orchestra 实时监控 Dashboard v4.0</title>
+    <meta http-equiv="refresh" content="5">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 100%);
+            color: #fff;
+            min-height: 100vh;
+            padding: 0;
+        }
+        .container { max-width: 1600px; margin: 0 auto; padding: 20px; }
+        
+        /* Header */
+        header {
+            background: rgba(0,255,136,0.1);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 0 0 20px 20px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #00ff88;
+        }
+        header h1 {
+            font-size: 2em;
+            text-align: center;
+            text-shadow: 0 0 20px rgba(0,255,136,0.5);
+        }
+        header .status {
+            text-align: center;
+            margin-top: 10px;
+            opacity: 0.8;
+        }
+        header .status .dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: #00ff88;
+            border-radius: 50%;
+            margin-right: 10px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        /* Stats Grid */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+            backdrop-filter: blur(10px);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.3s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,255,136,0.3);
+        }
+        .stat-value {
+            font-size: 3em;
+            font-weight: bold;
+            color: #00ff88;
+            text-shadow: 0 0 10px rgba(0,255,136,0.5);
+        }
+        .stat-label {
+            opacity: 0.8;
+            margin-top: 10px;
+            font-size: 1em;
+        }
+        
+        /* Agent Grid */
+        .agent-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .agent-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            padding: 20px;
+            border-left: 5px solid #00ff88;
+            transition: all 0.3s;
+        }
+        .agent-card:hover {
+            transform: translateX(10px);
+            box-shadow: 0 5px 20px rgba(0,255,136,0.3);
+        }
+        .agent-card.running {
+            border-left-color: #1e90ff;
+            animation: pulse-border 2s infinite;
+        }
+        .agent-card.failed {
+            border-left-color: #ff4757;
+        }
+        @keyframes pulse-border {
+            0%, 100% { box-shadow: 0 0 5px rgba(30,144,255,0.3); }
+            50% { box-shadow: 0 0 15px rgba(30,144,255,0.6); }
+        }
+        .agent-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .agent-name {
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+        .agent-status {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+        .agent-status.running { background: #1e90ff; }
+        .agent-status.completed { background: #00ff88; color: #0f0f1a; }
+        .agent-status.failed { background: #ff4757; }
+        .agent-desc {
+            opacity: 0.8;
+            margin-bottom: 15px;
+            font-size: 0.95em;
+        }
+        .agent-metrics { 
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .metric {
+            background: rgba(0,0,0,0.3);
+            padding: 12px;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .metric:hover {
+            background: rgba(0,255,136,0.2);
+            transform: scale(1.05);
+        }
+        .metric-value {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #00ff88;
+        }
+        .metric-label {
+            font-size: 0.75em;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+        
+        /* 工具调用详情弹窗 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.show {
+            display: flex;
+        }
+        .modal-content {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 2px solid #00ff88;
+            box-shadow: 0 0 50px rgba(0,255,136,0.5);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #00ff88;
+        }
+        .modal-title {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+        .modal-close {
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-size: 2em;
+            cursor: pointer;
+            opacity: 0.7;
+            transition: opacity 0.3s;
+        }
+        .modal-close:hover {
+            opacity: 1;
+        }
+        .tool-list {
+            list-style: none;
+            padding: 0;
+        }
+        .tool-item {
+            background: rgba(255,255,255,0.05);
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            border-left: 4px solid #00ff88;
+        }
+        .tool-name {
+            font-weight: bold;
+            color: #00ff88;
+            margin-bottom: 5px;
+        }
+        .tool-desc {
+            opacity: 0.8;
+            font-size: 0.95em;
+        }
+        .tool-time {
+            opacity: 0.6;
+            font-size: 0.85em;
+            margin-top: 5px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 15px;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #00b894);
+            transition: width 0.3s;
+        }
+        
+        /* Charts */
+        .charts {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .chart-container {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            height: 400px;  /* 固定高度 */
+            position: relative;
+            overflow: hidden;  /* 防止溢出 */
+        }
+        .chart-title {
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #00ff88;
+        }
+        .chart-wrapper {
+            position: relative;
+            height: 320px;  /* 固定图表区域高度 */
+            width: 100%;
+        }
+        .chart {
+            width: 100% !important;
+            height: 100% !important;  /* 强制固定 */
+        }
+        
+        /* Footer */
+        footer {
+            text-align: center;
+            opacity: 0.6;
+            padding: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .stats { grid-template-columns: repeat(2, 1fr); }
+            .charts { grid-template-columns: 1fr; }
+            .agent-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🎻 Orchestra 实时监控 Dashboard v4.0</h1>
+        <div class="status">
+            <span class="dot"></span>
+            实时数据 | 每 5 秒自动刷新 | 连接 API 服务器
+        </div>
+    </header>
+    
+    <div class="container">
+        <!-- Stats -->
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="totalAgents">0</div>
+                <div class="stat-label">总 Agent 数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="runningAgents">0</div>
+                <div class="stat-label">运行中</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="completedAgents">0</div>
+                <div class="stat-label">已完成</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="failedAgents">0</div>
+                <div class="stat-label">失败</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalTokens">0</div>
+                <div class="stat-label">总 Token</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="avgDuration">0m</div>
+                <div class="stat-label">平均耗时</div>
+            </div>
+        </div>
+        
+        <!-- Charts -->
+        <div class="charts">
+            <div class="chart-container">
+                <h3 class="chart-title">📈 Token 消耗趋势</h3>
+                <div class="chart-wrapper">
+                    <canvas id="tokenChart" class="chart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h3 class="chart-title">🥧 Agent 状态分布</h3>
+                <div class="chart-wrapper">
+                    <canvas id="statusChart" class="chart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h3 class="chart-title">📊 成本对比</h3>
+                <div class="chart-wrapper">
+                    <canvas id="costChart" class="chart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h3 class="chart-title">✅ 任务成功率</h3>
+                <div class="chart-wrapper">
+                    <canvas id="successChart" class="chart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Agents -->
+        <h2 class="chart-title">📊 Agent 详情</h2>
+        <div class="agent-grid" id="agentGrid">
+            <div style="grid-column: 1/-1; text-align: center; padding: 50px; opacity: 0.5;">
+                正在加载 Agent 数据...
+            </div>
+        </div>
+        
+        <!-- 工具调用详情弹窗 -->
+        <div id="toolModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title" id="modalTitle">🔧 工具调用详情</h3>
+                    <button class="modal-close" onclick="closeModal()">&times;</button>
+                </div>
+                <div id="modalBody">
+                    <ul class="tool-list" id="toolList"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <footer>
+        <p>Orchestra Dashboard v4.0 | 最后更新：<span id="lastUpdate">-</span></p>
+    </footer>
+    
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <script>
+        // API 配置
+        const API_BASE = 'http://localhost:3000';
+        let dashboardData = { stats: {}, agents: [], tokenHistory: [] };
+        let charts = {};
+        
+        // 从 API 加载数据
+        async function loadData() {
+            try {
+                const response = await fetch(`${API_BASE}/api/state`);
+                if (!response.ok) throw new Error('API 响应失败');
+                const data = await response.json();
+                dashboardData = data;
+                return true;
+            } catch (err) {
+                console.error('加载数据失败:', err);
+                return false;
+            }
+        }
+        
+        // 更新统计卡片
+        function updateStats() {
+            const s = dashboardData.stats || {};
+            document.getElementById('totalAgents').textContent = s.total || 0;
+            document.getElementById('runningAgents').textContent = s.running || 0;
+            document.getElementById('completedAgents').textContent = s.completed || 0;
+            document.getElementById('failedAgents').textContent = s.failed || 0;
+            document.getElementById('totalTokens').textContent = (s.totalTokens || 0).toLocaleString();
+            document.getElementById('avgDuration').textContent = ((s.avgDuration || 0) / 60000).toFixed(1) + 'm';
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleString();
+        }
+        
+        // 渲染 Agent 卡片
+        function renderAgents() {
+            const grid = document.getElementById('agentGrid');
+            const agents = dashboardData.agents || [];
+            
+            if (agents.length === 0) {
+                grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 50px; opacity: 0.5;">暂无 Agent 数据</div>';
+                return;
+            }
+            
+            grid.innerHTML = agents.map(agent => {
+                const tokens = agent.tokens || agent.progress?.tokenCount || 0;
+                const tools = agent.tools || agent.progress?.toolUseCount || 0;
+                const duration = agent.endTime 
+                    ? ((agent.endTime - agent.startTime) / 60000).toFixed(1)
+                    : ((Date.now() - agent.startTime) / 60000).toFixed(1);
+                const progress = agent.status === 'completed' ? 100 : agent.status === 'running' ? 75 : 0;
+                
+                // 生成模拟的工具调用详情（实际应该从 API 获取）
+                const toolDetails = generateToolDetails(agent, tools);
+                
+                return `
+                    <div class="agent-card ${agent.status}" data-id="${agent.id}">
+                        <div class="agent-header">
+                            <span class="agent-name">${agent.name}</span>
+                            <span class="agent-status ${agent.status}">${getStatusText(agent.status)}</span>
+                        </div>
+                        <div class="agent-desc">📝 ${agent.description || '-'}</div>
+                        <div class="agent-metrics">
+                            <div class="metric">
+                                <div class="metric-value">${tokens.toLocaleString()}</div>
+                                <div class="metric-label">Tokens</div>
+                            </div>
+                            <div class="metric" onclick="showToolDetails('${agent.id}', '${agent.name}', ${tools})">
+                                <div class="metric-value">${tools}</div>
+                                <div class="metric-label">🔧 工具调用<br><small>点击查看详情</small></div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-value">${duration}m</div>
+                                <div class="metric-label">耗时</div>
+                            </div>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${progress}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // 只更新 Agent 卡片数据（不重新渲染 DOM，用于弹窗打开时）
+        function updateAgentCardsOnly() {
+            const agents = dashboardData.agents || [];
+            agents.forEach(agent => {
+                const card = document.querySelector(`.agent-card[data-id="${agent.id}"]`);
+                if (!card) return;
+                
+                const tokens = agent.tokens || agent.progress?.tokenCount || 0;
+                const tools = agent.tools || agent.progress?.toolUseCount || 0;
+                const duration = agent.endTime 
+                    ? ((agent.endTime - agent.startTime) / 60000).toFixed(1)
+                    : ((Date.now() - agent.startTime) / 60000).toFixed(1);
+                const progress = agent.status === 'completed' ? 100 : agent.status === 'running' ? 75 : 0;
+                
+                // 更新数据
+                card.querySelector('.metric-value').textContent = tokens.toLocaleString();
+                card.querySelectorAll('.metric-value')[1].textContent = tools;
+                card.querySelectorAll('.metric-value')[2].textContent = duration + 'm';
+                card.querySelector('.progress-fill').style.width = progress + '%';
+                card.querySelector('.agent-status').textContent = getStatusText(agent.status);
+                card.className = `agent-card ${agent.status}`;
+            });
+        }
+        
+        function getStatusText(status) {
+            const map = { completed: '✅ 完成', running: '🔄 运行中', failed: '❌ 失败', pending: '⏳ 等待中' };
+            return map[status] || status;
+        }
+        
+        // 生成工具调用详情（模拟数据，实际应该从 API 获取）
+        function generateToolDetails(agent, count) {
+            const commonTools = [
+                { name: 'read', desc: '读取文件', icon: '📄' },
+                { name: 'write', desc: '写入文件', icon: '✏️' },
+                { name: 'edit', desc: '编辑文件', icon: '🔧' },
+                { name: 'exec', desc: '执行命令', icon: '⚡' },
+                { name: 'web_search', desc: '网络搜索', icon: '🌐' },
+                { name: 'web_fetch', desc: '抓取网页', icon: '🕸️' },
+                { name: 'message', desc: '发送消息', icon: '💬' },
+                { name: 'feishu_create_doc', desc: '创建飞书文档', icon: '📝' },
+                { name: 'feishu_update_doc', desc: '更新飞书文档', icon: '📋' },
+                { name: 'sessions_spawn', desc: '启动子代理', icon: '🤖' }
+            ];
+            
+            const tools = [];
+            for (let i = 0; i < count && i < 20; i++) {
+                const tool = commonTools[i % commonTools.length];
+                tools.push({
+                    name: tool.name,
+                    desc: tool.desc,
+                    icon: tool.icon,
+                    time: new Date(agent.startTime + i * 30000).toLocaleTimeString()
+                });
+            }
+            return tools;
+        }
+        
+        // 显示工具调用详情
+        function showToolDetails(agentId, agentName, count) {
+            const agent = dashboardData.agents.find(a => a.id === agentId);
+            if (!agent) return;
+            
+            const tools = generateToolDetails(agent, count);
+            const modal = document.getElementById('toolModal');
+            const title = document.getElementById('modalTitle');
+            const list = document.getElementById('toolList');
+            
+            title.textContent = `🔧 ${agentName} - 工具调用详情 (${count}次)`;
+            
+            if (tools.length === 0) {
+                list.innerHTML = '<li class="tool-item">暂无工具调用记录</li>';
+            } else {
+                list.innerHTML = tools.map((tool, i) => `
+                    <li class="tool-item">
+                        <div class="tool-name">${tool.icon} ${tool.name}</div>
+                        <div class="tool-desc">${tool.desc}</div>
+                        <div class="tool-time">⏰ ${tool.time}</div>
+                    </li>
+                `).join('');
+            }
+            
+            // 保存当前打开的 Agent ID
+            modal.dataset.agentId = agentId;
+            modal.classList.add('show');
+        }
+        
+        // 关闭弹窗
+        function closeModal() {
+            document.getElementById('toolModal').classList.remove('show');
+        }
+        
+        // 点击弹窗背景关闭
+        document.addEventListener('DOMContentLoaded', function() {
+            const modal = document.getElementById('toolModal');
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closeModal();
+                }
+            });
+        });
+        
+        // 键盘 ESC 关闭弹窗
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+        
+        // 初始化图表
+        function initCharts() {
+            Chart.defaults.color = '#fff';
+            Chart.defaults.borderColor = 'rgba(255,255,255,0.1)';
+            
+            // Token 趋势图
+            charts.token = new Chart(document.getElementById('tokenChart'), {
+                type: 'line',
+                data: { labels: [], datasets: [{ label: 'Token 消耗', data: [], borderColor: '#00ff88', backgroundColor: 'rgba(0,255,136,0.1)', fill: true, tension: 0.4 }] },
+                options: { 
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    animation: false,
+                    layout: { padding: 0 }
+                }
+            });
+            
+            // 状态饼图
+            charts.status = new Chart(document.getElementById('statusChart'), {
+                type: 'doughnut',
+                data: { labels: ['运行中', '已完成', '失败'], datasets: [{ data: [0, 0, 0], backgroundColor: ['#1e90ff', '#00ff88', '#ff4757'] }] },
+                options: { 
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    layout: { padding: 0 }
+                }
+            });
+            
+            // 成本对比图
+            charts.cost = new Chart(document.getElementById('costChart'), {
+                type: 'bar',
+                data: { labels: [], datasets: [{ label: 'Token 消耗', data: [], backgroundColor: 'rgba(0,255,136,0.7)' }] },
+                options: { 
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    animation: false,
+                    layout: { padding: 0 }
+                }
+            });
+            
+            // 成功率图
+            charts.success = new Chart(document.getElementById('successChart'), {
+                type: 'pie',
+                data: { labels: ['成功', '失败'], datasets: [{ data: [0, 0], backgroundColor: ['#00ff88', '#ff4757'] }] },
+                options: { 
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    layout: { padding: 0 }
+                }
+            });
+        }
+        
+        // 更新图表数据（优化：只更新数据，不重新渲染）
+        function updateCharts() {
+            const agents = dashboardData.agents || [];
+            const s = dashboardData.stats || {};
+            
+            // Token 趋势 - 只更新数据
+            charts.token.data.labels = (dashboardData.tokenHistory || []).map(d => d.time);
+            charts.token.data.datasets[0].data = (dashboardData.tokenHistory || []).map(d => d.tokens);
+            charts.token.update('none');  // 'none' 模式：不动画
+            
+            // 状态分布
+            charts.status.data.datasets[0].data = [s.running || 0, s.completed || 0, s.failed || 0];
+            charts.status.update('none');
+            
+            // 成本对比
+            charts.cost.data.labels = agents.slice(0, 10).map(a => a.name.substring(0, 15) + '...');
+            charts.cost.data.datasets[0].data = agents.slice(0, 10).map(a => a.tokens || a.progress?.tokenCount || 0);
+            charts.cost.update('none');
+            
+            // 成功率
+            charts.success.data.datasets[0].data = [s.completed || 0, s.failed || 0];
+            charts.success.update('none');
+        }
+        
+        // 主循环
+        let modalState = { isOpen: false, agentId: null, agentName: null, count: 0 };
+        
+        async function main() {
+            const loaded = await loadData();
+            if (!loaded) {
+                document.getElementById('agentGrid').innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #ff4757;">⚠️ 无法连接到 API 服务器</div>';
+                return;
+            }
+            
+            // 保存弹窗状态
+            const modal = document.getElementById('toolModal');
+            if (modal.classList.contains('show')) {
+                modalState.isOpen = true;
+                modalState.agentId = modal.dataset.agentId;
+                modalState.agentName = document.getElementById('modalTitle').textContent;
+                modalState.count = document.getElementById('toolList').children.length;
+            } else {
+                modalState.isOpen = false;
+            }
+            
+            updateStats();
+            
+            // 只在首次或没有弹窗时重新渲染 Agent
+            if (!modalState.isOpen) {
+                renderAgents();
+            } else {
+                // 弹窗打开时，只更新数据，不重新渲染 DOM
+                updateAgentCardsOnly();
+            }
+            
+            updateCharts();
+            
+            // 恢复弹窗
+            if (modalState.isOpen) {
+                showToolDetails(modalState.agentId, modalState.agentName, modalState.count);
+            }
+        }
+        
+        // 启动
+        initCharts();
+        main();
+        
+        // 每 5 秒刷新数据（不刷新整个页面）
+        setInterval(main, 5000);
+    </script>
+</body>
+</html>

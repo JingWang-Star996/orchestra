@@ -10,6 +10,7 @@
  */
 
 const EventEmitter = require('events');
+const { callAgent } = require('./agentCaller'); // 真实 Agent 调用器
 
 class ParallelExecutor extends EventEmitter {
   constructor(options = {}) {
@@ -100,15 +101,23 @@ class ParallelExecutor extends EventEmitter {
   }
 
   /**
-   * 调用 Agent 执行（占位符，实际由 Gateway 实现）
+   * 调用 Agent 执行（真实调用）
    */
   async _callAgent(task) {
-    // TODO: 实际调用 Agent
-    // 这里返回模拟结果
+    console.log(`[ParallelExecutor] 调用 Agent: ${task.agent || 'unknown'}`);
+    
+    // 真实调用 Agent
+    const result = await callAgent(
+      task.agent || 'Agent',
+      task.task || task.description || '执行任务',
+      task.promptPath || null
+    );
+    
     return {
-      output: `任务 ${task.id} 执行完成`,
-      tokens: 100,
-      toolCalls: 2
+      output: result.result.content,
+      tokens: result.tokens,
+      agent: result.agent,
+      time: result.time
     };
   }
 

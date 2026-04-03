@@ -112,25 +112,137 @@ function fromXML(xml) {
 }
 
 /**
- * 任务通知管理器
+ * 任务通知管理器（P1 增强版 - 支持持久化）
  */
 class TaskNotificationManager {
   constructor(options = {}) {
     this.notifications = new Map();
     this.listeners = new Map();
     this.verbose = options.verbose || false;
+    
+    // P1 新增：持久化支持
+    this.storage = options.storage || 'memory'; // 'memory' | 'file'
+    this.storagePath = options.storagePath || './temp/notifications';
+    this.maxHistorySize = options.maxHistorySize || 1000; // 最多保留 1000 条
+    
+    if (this.storage === 'file') {
+      this._initializeStorage();
+    }
   }
 
   /**
-   * 发送通知
+   * 初始化存储（P1 新增）
    */
-  send(notification) {
+  _initializeStorage() {
+    const fs = require('fs');
+    const path = require('path');
+    
+    // 创建存储目录
+    if (!fs.existsSync(this.storagePath)) {
+      fs.mkdirSync(this.storagePath, { recursive: true });
+      console.log(`[TaskNotification] 创建存储目录：${this.storagePath}`);
+    }
+    
+    // 加载已有通知
+    const indexPath = path.join(this.storagePath, 'index.json');
+    if (fs.existsSync(indexPath)) {
+      try {
+        const data = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
+        for (const n of data) {
+          this.notifications.set(n.taskId, n);
+        }
+        console.log(`[TaskNotification] 加载 ${data.length} 条历史通知`);
+      } catch (err) {
+        console.error(`[TaskNotification] 加载历史失败：${err.message}`);
+      }
+    }
+  }
+
+  /**
+   * 持久化通知（P1 新增）
+   */
+  async _persistNotification(notification) {
+    if (this.storage !== 'file') return;
+    
+    const fs = require('fs').promises;
+    const path = require('path');
+    
+    try {
+      // 保存单个通知（按 taskId 命名）
+      const filePath = path.join(this.storagePath, `${notification.taskId}.json`);
+      await fs.writeFile(filePath, JSON.stringify(notification, null, 2), 'utf-8');
+      
+      // 更新索引
+      await this._updateIndex();
+      
+      // 修剪历史记录
+      await this._trimHistory();
+      
+      if (this.verbose) {
+        console.log(`[TaskNotification] 持久化通知：${notification.taskId}`);
+      }
+    } catch (err) {
+      console.error(`[TaskNotification] 持久化失败：${err.message}`);
+    }
+  }
+  
+  /**
+   * 更新索引文件（P1 新增）
+   */
+  async _updateIndex() {
+    const fs = require('fs').promises;
+    const path = require('path');
+    
+    const index = Array.from(this.notifications.values())
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    const indexPath = path.join(this.storagePath, 'index.json');
+    await fs.writeFile(indexPath, JSON.stringify(index, null, 2), 'utf-8');
+  }
+  
+  /**
+   * 修剪历史记录（P1 新增）
+   */
+  async _trimHistory() {
+    if (this.notifications.size <= this.maxHistorySize) return;
+    
+    const fs = require('fs').promises;
+    const path = require('path');
+    
+    // 按时间排序，删除最旧的
+    const sorted = Array.from(this.notifications.entries())
+      .sort((a, b) => new Date(a[1].timestamp) - new Date(b[1].timestamp));
+    
+    const toDelete = sorted.slice(0, sorted.length - this.maxHistorySize);
+    
+    for (const [taskId] of toDelete) {
+      this.notifications.delete(taskId);
+      const filePath = path.join(this.storagePath, `${taskId}.json`);
+      try {
+        await fs.unlink(filePath);
+      } catch (err) {
+        // 忽略文件不存在的情况
+      }
+    }
+    
+    console.log(`[TaskNotification] 修剪历史，删除 ${toDelete.length} 条旧记录`);
+  }
+
+  /**
+   * 发送通知（P1 增强 - 支持持久化）
+   */
+  async send(notification) {
     if (this.verbose) {
       console.log(`[TaskNotification] 发送通知：${notification.taskId} (${notification.status})`);
     }
     
     this.notifications.set(notification.taskId, notification);
     this._notifyListeners(notification);
+    
+    // P1 新增：持久化
+    if (this.storage === 'file') {
+      await this._persistNotification(notification);
+    }
     
     return notification;
   }
@@ -160,20 +272,108 @@ class TaskNotificationManager {
   }
 
   /**
-   * 获取通知历史
+   * 获取通知历史（P1 增强 - 支持分页）
    */
-  getHistory(taskId) {
+  getHistory(taskId, options = {}) {
+    const { limit = 100, offset = 0, status = null } = options;
+    
     if (taskId) {
       return this.notifications.get(taskId);
     }
-    return Array.from(this.notifications.values());
+    
+    let all = Array.from(this.notifications.values());
+    
+    // 按状态过滤
+    if (status) {
+      all = all.filter(n => n.status === status);
+    }
+    
+    // 按时间排序（最新在前）
+    all.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    // 分页
+    return all.slice(offset, offset + limit);
   }
 
   /**
-   * 导出为 JSON
+   * 搜索通知（P1 新增）
    */
-  exportJSON() {
-    return JSON.stringify(Array.from(this.notifications.values()), null, 2);
+  search(query, options = {}) {
+    const { status = null, startTime = null, endTime = null, limit = 100 } = options;
+    
+    let results = Array.from(this.notifications.values());
+    
+    // 按状态过滤
+    if (status) {
+      results = results.filter(n => n.status === status);
+    }
+    
+    // 按时间过滤
+    if (startTime) {
+      results = results.filter(n => new Date(n.timestamp) >= new Date(startTime));
+    }
+    if (endTime) {
+      results = results.filter(n => new Date(n.timestamp) <= new Date(endTime));
+    }
+    
+    // 按关键词搜索（summary/result/taskId）
+    if (query) {
+      const q = query.toLowerCase();
+      results = results.filter(n => 
+        n.taskId.toLowerCase().includes(q) ||
+        n.summary.toLowerCase().includes(q) ||
+        (n.result && n.result.toLowerCase().includes(q))
+      );
+    }
+    
+    // 按时间排序（最新在前）
+    results.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    return results.slice(0, limit);
+  }
+  
+  /**
+   * 获取统计信息（P1 新增）
+   */
+  getStatistics() {
+    const all = Array.from(this.notifications.values());
+    
+    return {
+      total: all.length,
+      byStatus: {
+        completed: all.filter(n => n.status === 'completed').length,
+        failed: all.filter(n => n.status === 'failed').length,
+        killed: all.filter(n => n.status === 'killed').length
+      },
+      avgTokens: all.length > 0 ? Math.round(all.reduce((sum, n) => sum + (n.usage?.totalTokens || 0), 0) / all.length) : 0,
+      avgDuration: all.length > 0 ? Math.round(all.reduce((sum, n) => sum + (n.usage?.durationMs || 0), 0) / all.length) : 0,
+      storage: this.storage,
+      storagePath: this.storagePath
+    };
+  }
+  
+  /**
+   * 清空历史（P1 新增）
+   */
+  async clear() {
+    const fs = require('fs').promises;
+    const path = require('path');
+    
+    this.notifications.clear();
+    
+    if (this.storage === 'file') {
+      try {
+        const files = await fs.readdir(this.storagePath);
+        for (const file of files) {
+          if (file.endsWith('.json')) {
+            await fs.unlink(path.join(this.storagePath, file));
+          }
+        }
+        console.log(`[TaskNotification] 已清空所有历史记录`);
+      } catch (err) {
+        console.error(`[TaskNotification] 清空失败：${err.message}`);
+      }
+    }
   }
 
   /**

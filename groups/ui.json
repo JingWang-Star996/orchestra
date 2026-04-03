@@ -1,0 +1,13 @@
+{
+  "id": "ui",
+  "name": "UI 美术组",
+  "description": "负责游戏 UI 相关的美术工作",
+  "lead": "UI 原画师",
+  "agents": [
+    "UI 原画师",
+    "UI 制作师",
+    "UI/UX 设计师"
+  ],
+  "color": "#FF9800",
+  "icon": "🎨"
+}
