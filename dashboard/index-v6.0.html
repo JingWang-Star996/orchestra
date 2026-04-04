@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Orchestra 实时监控 Dashboard v4.2</title>
-    <meta http-equiv="refresh" content="10">
+    <title>Orchestra 实时监控 Dashboard v6.0</title>
+    <!-- Phase 2: WebSocket 实时推送 -->
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -24,7 +24,7 @@
             border-bottom: 2px solid #00ff88;
         }
         header h1 { font-size: 2em; text-align: center; text-shadow: 0 0 20px rgba(0,255,136,0.5); }
-        header .status { text-align: center; margin-top: 10px; opacity: 0.8; }
+        header .status { text-align: center; margin-top: 10px; opacity: 0.8; font-size: 0.95em; }
         header .status .dot {
             display: inline-block; width: 10px; height: 10px; background: #00ff88;
             border-radius: 50%; margin-right: 10px; animation: pulse 2s infinite;
@@ -83,12 +83,19 @@
         .tool-name { font-weight: bold; color: #00ff88; margin-bottom: 5px; }
         .tool-desc { opacity: 0.8; font-size: 0.95em; }
         .tool-time { opacity: 0.6; font-size: 0.85em; margin-top: 5px; }
+        .settings-bar { display: flex; gap: 15px; justify-content: center; align-items: center; margin-bottom: 20px; padding: 15px; background: rgba(0,255,136,0.05); border-radius: 10px; }
+        .settings-bar select, .settings-bar button {
+            padding: 8px 16px; border-radius: 6px; border: 1px solid rgba(0,255,136,0.3);
+            background: rgba(0,0,0,0.3); color: #fff; cursor: pointer; font-size: 0.9em;
+        }
+        .settings-bar select:hover, .settings-bar button:hover { background: rgba(0,255,136,0.2); }
         footer { text-align: center; opacity: 0.6; padding: 20px; border-top: 1px solid rgba(255,255,255,0.1); }
         @media (max-width: 768px) {
             .stats { grid-template-columns: repeat(2, 1fr); }
             .charts { grid-template-columns: 1fr; }
             .agent-grid { grid-template-columns: 1fr; }
             .modal-content { width: 95%; padding: 20px; }
+            .settings-bar { flex-wrap: wrap; }
         }
         @media (max-width: 480px) {
             .stats { grid-template-columns: 1fr; }
@@ -99,13 +106,38 @@
 </head>
 <body>
     <header>
-        <h1>🎻 Orchestra 实时监控 Dashboard v4.2</h1>
+        <h1>🎻 Orchestra 实时监控 Dashboard v6.0</h1>
         <div class="status">
-            <span class="dot"></span>
-            实时数据 | 每 10 秒自动刷新 | 智能更新（弹窗保持）
+            <span class="dot" id="connectionDot"></span>
+            <span id="connectionStatus">正在连接 WebSocket...</span>
+            | 🔄 <button onclick="forceRefresh()">立即刷新</button>
         </div>
     </header>
     <div class="container">
+        <div class="settings-bar">
+            <label>⚙️ 刷新频率：
+                <select id="refreshInterval" onchange="updateRefreshInterval()">
+                    <option value="5000">5 秒（实时）</option>
+                    <option value="10000" selected>10 秒（标准）</option>
+                    <option value="30000">30 秒（省电）</option>
+                    <option value="0">⏸️ 暂停</option>
+                </select>
+            </label>
+            <label>🔍 搜索：
+                <input type="text" id="agentSearch" placeholder="搜索 Agent..." 
+                       style="padding:8px 12px;border-radius:6px;border:1px solid rgba(0,255,136,0.3);background:rgba(0,0,0,0.3);color:#fff;width:200px;"
+                       oninput="filterAgents()">
+            </label>
+            <label>📊 状态过滤：
+                <select id="statusFilter" onchange="filterAgents()">
+                    <option value="">全部</option>
+                    <option value="running">🔄 运行中</option>
+                    <option value="completed">✅ 已完成</option>
+                    <option value="failed">❌ 失败</option>
+                </select>
+            </label>
+            <button onclick="exportData()">📥 导出 JSON</button>
+        </div>
         <div class="stats">
             <div class="stat-card"><div class="stat-value" id="totalAgents">0</div><div class="stat-label">总 Agent 数</div></div>
             <div class="stat-card"><div class="stat-value" id="runningAgents">0</div><div class="stat-label">运行中</div></div>
@@ -149,17 +181,187 @@
         </div>
     </div>
     <footer>
-        <p>Orchestra Dashboard v4.2 | 最后更新：<span id="lastUpdate">-</span></p>
+        <p>Orchestra Dashboard v6.0 (Phase 2 + 3) | WebSocket 实时推送 | 最后更新：<span id="lastUpdate">-</span></p>
     </footer>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script>
         const API_BASE = 'http://localhost:3000';
+        const WS_BASE = 'ws://localhost:3001';
         let dashboardData = { stats: {}, agents: [], tokenHistory: [] };
         let charts = {};
         let modalState = { isOpen: false, agentId: null };
         let errorCount = 0;
         let lastDataHash = '';
         let mainInterval = null;
+        let lastChartUpdate = 0;
+        let ws = null;
+
+        // Phase 2: WebSocket 连接
+        class DashboardWebSocket {
+            constructor(url) {
+                this.url = url;
+                this.ws = null;
+                this.reconnectInterval = 3000;
+                this.listeners = new Map();
+                this.connect();
+            }
+            
+            connect() {
+                console.log('[WebSocket] 尝试连接...');
+                this.ws = new WebSocket(this.url);
+                
+                this.ws.onopen = () => {
+                    console.log('[WebSocket] 已连接');
+                    this.emit('connected');
+                    updateConnectionStatus(true, 'WebSocket 已连接');
+                };
+                
+                this.ws.onmessage = (event) => {
+                    const message = JSON.parse(event.data);
+                    if (message.type === 'FULL') {
+                        this.emit('fullUpdate', message.data);
+                    } else if (message.type === 'UPDATE') {
+                        this.emit('incrementalUpdate', message.changes);
+                    }
+                };
+                
+                this.ws.onclose = () => {
+                    console.log('[WebSocket] 连接关闭，准备重连...');
+                    this.emit('disconnected');
+                    updateConnectionStatus(false, 'WebSocket 断开，重连中...');
+                    setTimeout(() => this.connect(), this.reconnectInterval);
+                };
+                
+                this.ws.onerror = (err) => {
+                    console.error('[WebSocket] 错误:', err);
+                    this.emit('error', err);
+                    updateConnectionStatus(false, 'WebSocket 错误');
+                };
+            }
+            
+            on(event, callback) {
+                if (!this.listeners.has(event)) {
+                    this.listeners.set(event, []);
+                }
+                this.listeners.get(event).push(callback);
+            }
+            
+            emit(event, data) {
+                if (this.listeners.has(event)) {
+                    this.listeners.get(event).forEach(cb => cb(data));
+                }
+            }
+        }
+
+        // 连接状态更新
+        function updateConnectionStatus(connected, text) {
+            const dot = document.getElementById('connectionDot');
+            const status = document.getElementById('connectionStatus');
+            dot.style.background = connected ? '#00ff88' : '#ff4757';
+            status.textContent = text;
+        }
+
+        // Phase 1 + 3: sessionStorage 弹窗持久化
+        function saveModalState() {
+            if (modalState.isOpen && modalState.agentId) {
+                sessionStorage.setItem('dashboard_modal', JSON.stringify(modalState));
+            }
+        }
+
+        function restoreModalState() {
+            try {
+                const saved = sessionStorage.getItem('dashboard_modal');
+                if (saved) {
+                    modalState = JSON.parse(saved);
+                    if (modalState.isOpen && modalState.agentId) {
+                        const agent = dashboardData.agents.find(a => a.id === modalState.agentId);
+                        if (agent) {
+                            showToolDetails(modalState.agentId, agent.name, 0);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('[Dashboard] 恢复弹窗状态失败:', e);
+            }
+        }
+
+        // Phase 3: 刷新频率设置
+        function updateRefreshInterval() {
+            const interval = document.getElementById('refreshInterval').value;
+            if (mainInterval) clearInterval(mainInterval);
+            
+            if (interval > 0) {
+                mainInterval = setInterval(() => {
+                    // WebSocket 断开时使用轮询降级
+                    if (!ws || ws.ws.readyState !== WebSocket.OPEN) {
+                        main();
+                    }
+                }, parseInt(interval));
+                console.log(`[Dashboard] 轮询间隔：${interval}ms`);
+            } else {
+                console.log('[Dashboard] 轮询已暂停');
+            }
+            
+            localStorage.setItem('dashboard_refresh_interval', interval);
+        }
+
+        // Phase 3: 搜索和过滤
+        function filterAgents() {
+            const searchTerm = document.getElementById('agentSearch').value.toLowerCase();
+            const statusFilter = document.getElementById('statusFilter').value;
+            
+            document.querySelectorAll('.agent-card').forEach(card => {
+                const name = card.querySelector('.agent-name').textContent.toLowerCase();
+                const statusClass = Array.from(card.querySelector('.agent-status').classList).find(c => ['running', 'completed', 'failed'].includes(c));
+                
+                const matchesSearch = !searchTerm || name.includes(searchTerm);
+                const matchesStatus = !statusFilter || statusClass === statusFilter;
+                
+                card.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
+            });
+        }
+
+        // Phase 3: 数据导出
+        function exportData() {
+            const data = {
+                timestamp: new Date().toISOString(),
+                stats: dashboardData.stats,
+                agents: dashboardData.agents
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `orchestra-dashboard-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            showToast('📥 数据已导出');
+        }
+
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification';
+            toast.textContent = message;
+            toast.style.cssText = `
+                position: fixed; bottom: 20px; right: 20px;
+                background: linear-gradient(135deg, #1e90ff, #00ff88);
+                color: #fff; padding: 15px 25px; border-radius: 10px;
+                box-shadow: 0 5px 20px rgba(0, 255, 136, 0.4);
+                z-index: 2000; animation: slide-in-right 0.3s ease-out;
+            `;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // 强制刷新功能
+        function forceRefresh() {
+            console.log('[Dashboard] 手动强制刷新');
+            lastDataHash = '';
+            main();
+            showToast('🔄 已刷新');
+        }
 
         async function loadData() {
             try {
@@ -240,12 +442,19 @@
                 const tools = agent.tools || agent.progress?.toolUseCount || 0;
                 const duration = agent.endTime ? ((agent.endTime - agent.startTime) / 60000).toFixed(1) : ((Date.now() - agent.startTime) / 60000).toFixed(1);
                 const progress = agent.status === 'completed' ? 100 : agent.status === 'running' ? 75 : 0;
-                card.querySelector('.metric-value').textContent = tokens.toLocaleString();
+                
+                const oldStatus = card.querySelector('.agent-status').textContent;
+                const newStatus = getStatusText(agent.status);
+                if (oldStatus !== newStatus) {
+                    card.querySelector('.agent-status').textContent = newStatus;
+                    card.className = `agent-card ${agent.status}`;
+                    card.style.animation = 'pulse-border 0.5s 2';
+                }
+                
+                card.querySelectorAll('.metric-value')[0].textContent = tokens.toLocaleString();
                 card.querySelectorAll('.metric-value')[1].textContent = tools;
                 card.querySelectorAll('.metric-value')[2].textContent = duration + 'm';
                 card.querySelector('.progress-fill').style.width = progress + '%';
-                card.querySelector('.agent-status').textContent = getStatusText(agent.status);
-                card.className = `agent-card ${agent.status}`;
             });
         }
 
@@ -254,9 +463,7 @@
             return map[status] || status;
         }
 
-        // 从 API 数据中获取真实工具调用记录
         function getToolDetails(agent) {
-            // 优先使用 agent.toolCalls（真实数据 - 详细列表）
             if (agent.toolCalls && Array.isArray(agent.toolCalls) && agent.toolCalls.length > 0) {
                 return agent.toolCalls.map(tool => ({
                     name: tool.name || 'unknown',
@@ -266,7 +473,6 @@
                     args: tool.args || {}
                 }));
             }
-            // 兼容旧格式：使用 progress.toolUse
             if (agent.progress && Array.isArray(agent.progress.toolUse)) {
                 return agent.progress.toolUse.map(tool => ({
                     name: tool.name || 'unknown',
@@ -275,7 +481,6 @@
                     time: tool.timestamp ? new Date(tool.timestamp).toLocaleTimeString() : new Date(agent.startTime).toLocaleTimeString()
                 }));
             }
-            // 如果只有 toolUseCount（数量），生成提示信息
             const count = agent.progress?.toolUseCount || 0;
             if (count > 0) {
                 return [{
@@ -286,11 +491,9 @@
                     args: {}
                 }];
             }
-            // 无数据
             return [];
         }
 
-        // 工具图标映射
         function getToolIcon(toolName) {
             const icons = {
                 read: '📄', write: '✏️', edit: '🔧', exec: '⚡',
@@ -303,7 +506,6 @@
             return icons[toolName] || '🔧';
         }
 
-        // 工具描述映射
         function getToolDescription(toolName) {
             const descs = {
                 read: '读取文件', write: '写入文件', edit: '编辑文件', exec: '执行命令',
@@ -322,7 +524,7 @@
                 console.error('Agent 不存在:', agentId);
                 return;
             }
-            const tools = getToolDetails(agent); // 使用真实数据
+            const tools = getToolDetails(agent);
             const modal = document.getElementById('toolModal');
             const title = document.getElementById('modalTitle');
             const list = document.getElementById('toolList');
@@ -338,6 +540,7 @@
             modalState.isOpen = true;
             modalState.agentId = agentId;
             modal.classList.add('show');
+            saveModalState();
             console.log('弹窗已打开:', agentName, '- 工具数:', tools.length);
         }
 
@@ -345,6 +548,7 @@
             modalState.isOpen = false;
             modalState.agentId = null;
             document.getElementById('toolModal').classList.remove('show');
+            sessionStorage.removeItem('dashboard_modal');
             console.log('弹窗已关闭');
         }
 
@@ -354,28 +558,33 @@
             charts.token = new Chart(document.getElementById('tokenChart'), {
                 type: 'line',
                 data: { labels: [], datasets: [{ label: 'Token 消耗', data: [], borderColor: '#00ff88', backgroundColor: 'rgba(0,255,136,0.1)', fill: true, tension: 0.4 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, animation: false }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, animation: { duration: 300 } }
             });
             charts.status = new Chart(document.getElementById('statusChart'), {
                 type: 'doughnut',
                 data: { labels: ['运行中', '已完成', '失败'], datasets: [{ data: [0, 0, 0], backgroundColor: ['#1e90ff', '#00ff88', '#ff4757'] }] },
-                options: { responsive: true, maintainAspectRatio: false, animation: false }
+                options: { responsive: true, maintainAspectRatio: false, animation: { duration: 300 } }
             });
             charts.cost = new Chart(document.getElementById('costChart'), {
                 type: 'bar',
                 data: { labels: [], datasets: [{ label: 'Token 消耗', data: [], backgroundColor: 'rgba(0,255,136,0.7)' }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, animation: false }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, animation: { duration: 300 } }
             });
             charts.success = new Chart(document.getElementById('successChart'), {
                 type: 'pie',
                 data: { labels: ['成功', '失败'], datasets: [{ data: [0, 0], backgroundColor: ['#00ff88', '#ff4757'] }] },
-                options: { responsive: true, maintainAspectRatio: false, animation: false }
+                options: { responsive: true, maintainAspectRatio: false, animation: { duration: 300 } }
             });
         }
 
         function updateCharts() {
             const agents = dashboardData.agents || [];
             const s = dashboardData.stats || {};
+            
+            const now = Date.now();
+            if (now - lastChartUpdate < 30000) return;
+            lastChartUpdate = now;
+            
             charts.token.data.labels = (dashboardData.tokenHistory || []).map(d => d.time);
             charts.token.data.datasets[0].data = (dashboardData.tokenHistory || []).map(d => d.tokens);
             charts.token.update('none');
@@ -388,9 +597,62 @@
             charts.success.update('none');
         }
 
+        // Phase 2: WebSocket 增量更新处理
+        function handleIncrementalUpdate(changes) {
+            let needsRender = false;
+            
+            changes.forEach(change => {
+                if (change.type === 'stats') {
+                    dashboardData.stats = change.data;
+                    updateStats();
+                } else if (change.type === 'agent') {
+                    const index = dashboardData.agents.findIndex(a => a.id === change.data.id);
+                    if (index >= 0) {
+                        dashboardData.agents[index] = change.data;
+                        updateAgentCard(change.data.id);
+                    } else {
+                        dashboardData.agents.push(change.data);
+                        needsRender = true;
+                    }
+                }
+            });
+            
+            if (needsRender) renderAgents();
+        }
+
+        function updateAgentCard(agentId) {
+            const agent = dashboardData.agents.find(a => a.id === agentId);
+            if (!agent) return;
+            
+            const card = document.querySelector(`.agent-card[data-id="${agentId}"]`);
+            if (!card) return;
+            
+            const tokens = agent.tokens || agent.progress?.tokenCount || 0;
+            const tools = agent.tools || agent.progress?.toolUseCount || 0;
+            const duration = agent.endTime ? ((agent.endTime - agent.startTime) / 60000).toFixed(1) : ((Date.now() - agent.startTime) / 60000).toFixed(1);
+            const progress = agent.status === 'completed' ? 100 : agent.status === 'running' ? 75 : 0;
+            
+            const oldStatus = card.querySelector('.agent-status').textContent;
+            const newStatus = getStatusText(agent.status);
+            if (oldStatus !== newStatus) {
+                card.querySelector('.agent-status').textContent = newStatus;
+                card.className = `agent-card ${agent.status}`;
+                card.style.animation = 'pulse-border 0.5s 2';
+            }
+            
+            card.querySelectorAll('.metric-value')[0].textContent = tokens.toLocaleString();
+            card.querySelectorAll('.metric-value')[1].textContent = tools;
+            card.querySelectorAll('.metric-value')[2].textContent = duration + 'm';
+            card.querySelector('.progress-fill').style.width = progress + '%';
+        }
+
         async function main() {
             const loaded = await loadData();
             if (!loaded) return;
+            
+            if (lastDataHash === '') {
+                restoreModalState();
+            }
             
             if (modalState.isOpen) {
                 updateStats();
@@ -406,13 +668,47 @@
             updateCharts();
         }
 
+        // 初始化
         initCharts();
-        main();
-        mainInterval = setInterval(main, 10000);
-
-        window.addEventListener('beforeunload', () => {
-            if (mainInterval) clearInterval(mainInterval);
-            Object.values(charts).forEach(chart => { if (chart && typeof chart.destroy === 'function') chart.destroy(); });
+        
+        // Phase 2: 初始化 WebSocket
+        ws = new DashboardWebSocket(WS_BASE);
+        
+        ws.on('fullUpdate', (data) => {
+            console.log('[Dashboard] 收到全量更新');
+            dashboardData = data;
+            updateStats();
+            renderAgents();
+            updateCharts();
+        });
+        
+        ws.on('incrementalUpdate', (changes) => {
+            console.log('[Dashboard] 收到增量更新:', changes.length, '个变更');
+            handleIncrementalUpdate(changes);
+        });
+        
+        ws.on('disconnected', () => {
+            console.log('[Dashboard] WebSocket 断开，降级到轮询模式');
+        });
+        
+        // 加载设置
+        const savedInterval = localStorage.getItem('dashboard_refresh_interval') || '10000';
+        document.getElementById('refreshInterval').value = savedInterval;
+        updateRefreshInterval();
+        
+        // 键盘快捷键
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+                e.preventDefault();
+                forceRefresh();
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+                e.preventDefault();
+                exportData();
+            }
+            if (e.key === 'Escape') {
+                closeModal();
+            }
         });
 
         document.getElementById('toolModal').addEventListener('click', function(e) {
@@ -422,8 +718,16 @@
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') closeModal();
         });
-        
-        console.log('Dashboard v4.2 已加载');
+
+        // 添加 CSS 动画
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slide-in-right {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+        `;
+        document.head.appendChild(style);
     </script>
 </body>
 </html>

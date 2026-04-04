@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Orchestra 实时监控 Dashboard v4.2</title>
-    <meta http-equiv="refresh" content="10">
+    <title>Orchestra 实时监控 Dashboard v5.0</title>
+    <!-- Phase 1: 移除整页刷新，改为智能轮询 -->
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -99,10 +99,10 @@
 </head>
 <body>
     <header>
-        <h1>🎻 Orchestra 实时监控 Dashboard v4.2</h1>
+        <h1>🎻 Orchestra 实时监控 Dashboard v5.0</h1>
         <div class="status">
             <span class="dot"></span>
-            实时数据 | 每 10 秒自动刷新 | 智能更新（弹窗保持）
+            实时数据 | 智能轮询 | 弹窗保持 | 🔄 <button onclick="forceRefresh()" style="background:transparent;border:1px solid #00ff88;color:#00ff88;padding:4px 12px;border-radius:4px;cursor:pointer;margin-left:10px;">立即刷新</button>
         </div>
     </header>
     <div class="container">
@@ -149,17 +149,50 @@
         </div>
     </div>
     <footer>
-        <p>Orchestra Dashboard v4.2 | 最后更新：<span id="lastUpdate">-</span></p>
+        <p>Orchestra Dashboard v5.0 (Phase 1) | 最后更新：<span id="lastUpdate">-</span> | 🟢 智能轮询中</p>
     </footer>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script>
         const API_BASE = 'http://localhost:3000';
+        const REFRESH_INTERVAL = 10000; // 10 秒轮询
         let dashboardData = { stats: {}, agents: [], tokenHistory: [] };
         let charts = {};
         let modalState = { isOpen: false, agentId: null };
         let errorCount = 0;
         let lastDataHash = '';
         let mainInterval = null;
+        let lastChartUpdate = 0;
+
+        // Phase 1: sessionStorage 弹窗持久化
+        function saveModalState() {
+            if (modalState.isOpen && modalState.agentId) {
+                sessionStorage.setItem('dashboard_modal', JSON.stringify(modalState));
+            }
+        }
+
+        function restoreModalState() {
+            try {
+                const saved = sessionStorage.getItem('dashboard_modal');
+                if (saved) {
+                    modalState = JSON.parse(saved);
+                    if (modalState.isOpen && modalState.agentId) {
+                        const agent = dashboardData.agents.find(a => a.id === modalState.agentId);
+                        if (agent) {
+                            showToolDetails(modalState.agentId, agent.name, 0);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('[Dashboard] 恢复弹窗状态失败:', e);
+            }
+        }
+
+        // 强制刷新功能
+        function forceRefresh() {
+            console.log('[Dashboard] 手动强制刷新');
+            lastDataHash = ''; // 清空缓存，强制全量更新
+            main();
+        }
 
         async function loadData() {
             try {
@@ -184,6 +217,7 @@
             }
         }
 
+        // Phase 1: 智能更新 - 只更新变化的部分
         function shouldUpdate() {
             const hash = JSON.stringify({
                 stats: dashboardData.stats,
@@ -232,6 +266,7 @@
             }).join('');
         }
 
+        // 差异化更新 Agent 卡片
         function updateAgentCardsOnly() {
             dashboardData.agents.forEach(agent => {
                 const card = document.querySelector(`.agent-card[data-id="${agent.id}"]`);
@@ -240,12 +275,21 @@
                 const tools = agent.tools || agent.progress?.toolUseCount || 0;
                 const duration = agent.endTime ? ((agent.endTime - agent.startTime) / 60000).toFixed(1) : ((Date.now() - agent.startTime) / 60000).toFixed(1);
                 const progress = agent.status === 'completed' ? 100 : agent.status === 'running' ? 75 : 0;
-                card.querySelector('.metric-value').textContent = tokens.toLocaleString();
+                
+                // 只更新变化的部分
+                const oldStatus = card.querySelector('.agent-status').textContent;
+                const newStatus = getStatusText(agent.status);
+                if (oldStatus !== newStatus) {
+                    card.querySelector('.agent-status').textContent = newStatus;
+                    card.className = `agent-card ${agent.status}`;
+                    // 状态变化时高亮闪烁
+                    card.style.animation = 'pulse-border 0.5s 2';
+                }
+                
+                card.querySelectorAll('.metric-value')[0].textContent = tokens.toLocaleString();
                 card.querySelectorAll('.metric-value')[1].textContent = tools;
                 card.querySelectorAll('.metric-value')[2].textContent = duration + 'm';
                 card.querySelector('.progress-fill').style.width = progress + '%';
-                card.querySelector('.agent-status').textContent = getStatusText(agent.status);
-                card.className = `agent-card ${agent.status}`;
             });
         }
 
@@ -256,7 +300,6 @@
 
         // 从 API 数据中获取真实工具调用记录
         function getToolDetails(agent) {
-            // 优先使用 agent.toolCalls（真实数据 - 详细列表）
             if (agent.toolCalls && Array.isArray(agent.toolCalls) && agent.toolCalls.length > 0) {
                 return agent.toolCalls.map(tool => ({
                     name: tool.name || 'unknown',
@@ -266,7 +309,6 @@
                     args: tool.args || {}
                 }));
             }
-            // 兼容旧格式：使用 progress.toolUse
             if (agent.progress && Array.isArray(agent.progress.toolUse)) {
                 return agent.progress.toolUse.map(tool => ({
                     name: tool.name || 'unknown',
@@ -275,7 +317,6 @@
                     time: tool.timestamp ? new Date(tool.timestamp).toLocaleTimeString() : new Date(agent.startTime).toLocaleTimeString()
                 }));
             }
-            // 如果只有 toolUseCount（数量），生成提示信息
             const count = agent.progress?.toolUseCount || 0;
             if (count > 0) {
                 return [{
@@ -286,11 +327,9 @@
                     args: {}
                 }];
             }
-            // 无数据
             return [];
         }
 
-        // 工具图标映射
         function getToolIcon(toolName) {
             const icons = {
                 read: '📄', write: '✏️', edit: '🔧', exec: '⚡',
@@ -303,7 +342,6 @@
             return icons[toolName] || '🔧';
         }
 
-        // 工具描述映射
         function getToolDescription(toolName) {
             const descs = {
                 read: '读取文件', write: '写入文件', edit: '编辑文件', exec: '执行命令',
@@ -322,7 +360,7 @@
                 console.error('Agent 不存在:', agentId);
                 return;
             }
-            const tools = getToolDetails(agent); // 使用真实数据
+            const tools = getToolDetails(agent);
             const modal = document.getElementById('toolModal');
             const title = document.getElementById('modalTitle');
             const list = document.getElementById('toolList');
@@ -338,6 +376,10 @@
             modalState.isOpen = true;
             modalState.agentId = agentId;
             modal.classList.add('show');
+            
+            // Phase 1: 保存到 sessionStorage
+            saveModalState();
+            
             console.log('弹窗已打开:', agentName, '- 工具数:', tools.length);
         }
 
@@ -345,6 +387,7 @@
             modalState.isOpen = false;
             modalState.agentId = null;
             document.getElementById('toolModal').classList.remove('show');
+            sessionStorage.removeItem('dashboard_modal');
             console.log('弹窗已关闭');
         }
 
@@ -376,6 +419,12 @@
         function updateCharts() {
             const agents = dashboardData.agents || [];
             const s = dashboardData.stats || {};
+            
+            // Phase 1: 图表节流更新（每 30 秒）
+            const now = Date.now();
+            if (now - lastChartUpdate < 30000) return;
+            lastChartUpdate = now;
+            
             charts.token.data.labels = (dashboardData.tokenHistory || []).map(d => d.time);
             charts.token.data.datasets[0].data = (dashboardData.tokenHistory || []).map(d => d.tokens);
             charts.token.update('none');
@@ -392,6 +441,12 @@
             const loaded = await loadData();
             if (!loaded) return;
             
+            // Phase 1: 首次加载时恢复弹窗状态
+            if (lastDataHash === '') {
+                restoreModalState();
+            }
+            
+            // 弹窗打开时，只更新数据，不重新渲染 DOM
             if (modalState.isOpen) {
                 updateStats();
                 updateAgentCardsOnly();
@@ -399,6 +454,7 @@
                 return;
             }
             
+            // 数据未变化，跳过更新
             if (!shouldUpdate()) return;
             
             updateStats();
@@ -406,9 +462,12 @@
             updateCharts();
         }
 
+        // 初始化图表
         initCharts();
+        // 首次加载
         main();
-        mainInterval = setInterval(main, 10000);
+        // Phase 1: 智能轮询（取代整页刷新）
+        mainInterval = setInterval(main, REFRESH_INTERVAL);
 
         window.addEventListener('beforeunload', () => {
             if (mainInterval) clearInterval(mainInterval);
@@ -422,8 +481,6 @@
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') closeModal();
         });
-        
-        console.log('Dashboard v4.2 已加载');
     </script>
 </body>
 </html>

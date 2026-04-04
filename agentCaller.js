@@ -12,11 +12,11 @@ const https = require('https');
 const path = require('path');
 const fs = require('fs');
 
-// AI 配置
+// AI 配置 - 支持多种 AI 服务商（动态读取环境变量）
 const AI_CONFIG = {
   model: process.env.ORCHESTRA_MODEL || process.env.DREAM_MODEL || 'qwen3.5-plus',
   apiKey: process.env.ORCHESTRA_API_KEY || process.env.DREAM_API_KEY || '',
-  baseUrl: process.env.ORCHESTRA_API_URL || 'https://coding.dashscope.aliyuncs.com/v1'
+  baseUrl: process.env.ORCHESTRA_API_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1'
 };
 
 /**

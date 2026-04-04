@@ -2,11 +2,11 @@
   "name": "orchestra",
   "version": "1.0.0",
   "description": "Orchestra - 基于 Claude Coordinator 模式的四阶段多 Agent 协作框架",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "index.js",
+  "types": "index.d.ts",
   "scripts": {
-    "build": "tsc",
-    "watch": "tsc --watch",
+    "build": "echo 'No build step required (JavaScript project)'",
+    "watch": "echo 'No watch step required'",
     "example:bugfix": "ts-node examples/real-world-examples.ts --bugfix",
     "example:feature": "ts-node examples/real-world-examples.ts --feature",
     "example:perf": "ts-node examples/real-world-examples.ts --perf",
@@ -51,5 +51,8 @@
   "bugs": {
     "url": "https://github.com/openclaw/orchestra/issues"
   },
-  "homepage": "https://github.com/openclaw/orchestra#readme"
+  "homepage": "https://github.com/openclaw/orchestra#readme",
+  "dependencies": {
+    "ws": "^8.20.0"
+  }
 }

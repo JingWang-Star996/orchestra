@@ -1,16 +1,19 @@
-# 编译输出
-dist/
-build/
-*.js.map
-*.d.ts.map
-
-# 依赖
+# Dependencies
 node_modules/
+dist/
 
-# 测试
-coverage/
-test-data/
+# Build output
+*.js.map
+*.d.ts
+
+# Temporary files
+temp/
+*.tmp
 *.log
+
+# OS files
+.DS_Store
+Thumbs.db
 
 # IDE
 .vscode/
@@ -18,11 +21,9 @@ test-data/
 *.swp
 *.swo
 
-# 系统文件
-.DS_Store
-Thumbs.db
+# Environment
+.env
+.env.local
 
-# 临时文件
-tmp/
-temp/
-*.tmp
+# Test coverage
+coverage/
