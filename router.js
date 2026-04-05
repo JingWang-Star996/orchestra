@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * Router - Agent 路由器
+ * Router - 内部任务分配器
  * 
- * 职责：根据任务类型自动分配给对应的 AI 岗位
- * 输入：子任务列表
- * 输出：任务→Agent 映射关系
+ * 职责：Orchestra 内部使用，将子任务分配给对应的 Worker
+ * 输入：子任务列表（已分解）
+ * 输出：任务→Worker 映射关系
+ * 
+ * 注意：这是 Orchestra 内部工具，不对外提供路由功能
+ *       主 AI 负责决策是否调用 Orchestra，Router 只负责任务分配
  */
 
 class AgentRouter {
