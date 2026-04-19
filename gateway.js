@@ -26,6 +26,9 @@ const { TaskNotificationManager, createTaskNotification } = require('./taskNotif
 const WorkerManager = require('./workerManager');
 const { decideContinueOrSpawn, DecisionType } = require('./decisionMatrix');
 
+// 跨 Agent 通信层
+const InterAgentBridge = require('./interAgentBridge');
+
 // OpenClaw API 集成
 const sessions_spawn = global.sessions_spawn || null;
 const process = global.process || null;
@@ -87,8 +90,14 @@ class OrchestraGateway {
       verbose: this.options.verbose
     });
     
+    // 跨 Agent 通信桥接
+    this.interAgentBridge = new InterAgentBridge({ verbose: this.options.verbose });
+    
     // 可用 Agent 列表（53 个）
     this.availableAgents = this._loadAllAgents();
+    
+    // 将内部 Agent 注册到 bridge
+    this._registerInternalAgentsToBridge();
     
     console.log(`[Gateway] 初始化完成，可用 Agent: ${this.availableAgents.length}个`);
   }
@@ -160,6 +169,26 @@ class OrchestraGateway {
   }
 
   /**
+   * 将内部 Agent 注册到 InterAgentBridge
+   */
+  _registerInternalAgentsToBridge() {
+    try {
+      for (const agent of this.availableAgents) {
+        this.interAgentBridge.registerAgent({
+          id: agent.name,
+          name: agent.name,
+          type: 'internal'
+        });
+      }
+      if (this.options.verbose) {
+        console.log(`[Gateway] 已注册 ${this.availableAgents.length} 个内部 Agent 到 InterAgentBridge`);
+      }
+    } catch (err) {
+      console.error('[Gateway] 注册内部 Agent 到 Bridge 失败:', err.message);
+    }
+  }
+
+  /**
    * 主入口：处理用户请求（100% 版本）
    * @param {string} userInput - 用户输入
    * @returns {Promise<Object>} 执行结果
@@ -180,6 +209,27 @@ class OrchestraGateway {
       console.log(`🤖 Phase 2: 路由决策`);
       const routing = await this._makeRoutingDecision(intent, userInput);
       console.log(`路由：${routing.type} → ${routing.target}\n`);
+      
+      // Phase 2.5: 检查是否有外部 Agent 匹配
+      const externalRouting = await this._checkExternalAgentRouting(intent, userInput);
+      if (externalRouting) {
+        console.log(`🌐 Phase 2.5: 外部 Agent 路由 → ${externalRouting.target}\n`);
+        console.log(`⚙️  Phase 3: 执行调度`);
+        const result = await this._executeExternalAgent(externalRouting.target, userInput, externalRouting);
+        console.log();
+        console.log(`📊 Phase 4: 结果汇总`);
+        const output = this._summarizeResult(result, intent, externalRouting);
+        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.log(`执行完成，耗时：${duration}秒\n`);
+        return {
+          success: true,
+          userInput: userInput,
+          intent: intent,
+          routing: externalRouting,
+          result: output,
+          stats: this._generateStats(duration)
+        };
+      }
       
       // Phase 3: 执行调度
       console.log(`⚙️  Phase 3: 执行调度`);
@@ -295,10 +345,77 @@ class OrchestraGateway {
   }
 
   /**
-   * Phase 3a: 执行单个 Agent - 集成 OpenClaw API
+   * Phase 2.5: 检查外部 Agent 路由
+   */
+  async _checkExternalAgentRouting(intent, userInput) {
+    try {
+      const externalAgents = this.interAgentBridge.listExternalAgents();
+      if (externalAgents.length === 0) return null;
+      
+      for (const agent of externalAgents) {
+        if (agent.capabilities && agent.capabilities.length > 0) {
+          for (const cap of agent.capabilities) {
+            if (userInput.toLowerCase().includes(cap.toLowerCase())) {
+              return {
+                type: 'external',
+                target: agent.id,
+                agent: agent,
+                reason: `外部 Agent ${agent.name} 匹配能力: ${cap}`
+              };
+            }
+          }
+        }
+      }
+    } catch (err) {
+      if (this.options.verbose) {
+        console.error('[Gateway] 检查外部 Agent 路由失败:', err.message);
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Phase 3a: 执行外部 Agent（通过 InterAgentBridge）
+   */
+  async _executeExternalAgent(agentId, userInput, routing) {
+    console.log(`  通过 InterAgentBridge 委派到外部 Agent: ${agentId}`);
+    
+    try {
+      const result = await this.interAgentBridge.delegateTask(agentId, {
+        title: `Gateway Task: ${userInput.substring(0, 60)}`,
+        description: userInput,
+        priority: 'normal'
+      }, { userInput, intent: routing });
+      
+      return {
+        type: 'external',
+        agent: agentId,
+        taskId: result.taskId,
+        output: result.output || `[External ${agentId}] 任务已委派`
+      };
+    } catch (err) {
+      console.error(`[Gateway] 外部 Agent 委派失败: ${err.message}`);
+      throw err;
+    }
+  }
+
+  /**
+   * Phase 3a: 执行单个 Agent - 集成 OpenClaw API + InterAgentBridge
    */
   async _executeSingleAgent(agentName, userInput) {
     console.log(`  调用单个 Agent: ${agentName}`);
+    
+    // 检查是否是外部 Agent（通过 bridge.registry 判断）
+    const bridgeAgent = this.interAgentBridge.getAgent(agentName);
+    if (bridgeAgent && bridgeAgent.type === 'external') {
+      console.log(`[Gateway] ${agentName} 是外部 Agent，通过 InterAgentBridge 委派`);
+      return await this._executeExternalAgent(agentName, userInput, {
+        type: 'external',
+        target: agentName,
+        agent: bridgeAgent,
+        reason: 'Bridge registry 标记为外部 Agent'
+      });
+    }
     
     // 查找 Agent 提示词
     const agent = this.availableAgents.find(a => a.name === agentName);

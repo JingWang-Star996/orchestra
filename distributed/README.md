@@ -1,198 +1,220 @@
-# Orchestra 分布式系统设计 - 总结
+# Orchestra 分布式运行时
 
-## 📋 文档索引
+Orchestra 多实例分布式运行时的轻量级实现，**零外部依赖**（仅使用 Node.js 内置模块）。
 
-| 文档 | 描述 | 状态 |
+## 📦 模块
+
+| 模块 | 文件 | 职责 |
 |------|------|------|
-| [01-architecture-design.md](./01-architecture-design.md) | 分布式架构设计 | ✅ 完成 |
-| [02-message-queue-integration.md](./02-message-queue-integration.md) | 消息队列集成方案 | ✅ 完成 |
-| [03-state-sync-protocol.md](./03-state-sync-protocol.md) | 状态同步协议 | ✅ 完成 |
-| [04-deployment-guide.md](./04-deployment-guide.md) | 部署指南 | ✅ 完成 |
+| NodeRegistry | `NodeRegistry.js` | 节点注册、发现、心跳、上下线通知 |
+| MessageBus | `MessageBus.js` | 轻量级消息总线（EventEmitter + 文件队列）|
+| StateSync | `StateSync.js` | 跨节点状态同步（版本向量 + LWW 冲突解决）|
 
----
+## 🚀 快速开始
 
-## 🎯 设计决策总结
+### 方式一：一键创建运行时
 
-### 1. 多实例部署架构
+```javascript
+const { createRuntime } = require('./distributed');
 
-**核心设计**：
-- 无状态应用层 + 有状态中间件
-- 支持水平扩展 (1 → N 实例)
-- 三种部署模式：最小/标准/大规模
+// 创建节点 A
+const nodeA = createRuntime({
+  nodeId: 'instance-1',
+  role: 'primary',
+  storageMode: 'memory', // 或 'file' 持久化到本地
+});
 
-**技术选型**：
-| 组件 | 选型 | 理由 |
-|------|------|------|
-| 负载均衡 | Nginx | 成熟稳定、配置简单 |
-| 应用服务器 | Node.js | 与现有架构一致 |
-| 数据库 | PostgreSQL | ACID 保证、JSON 支持 |
-| 缓存 | Redis Cluster | 高性能、数据结构丰富 |
-| 消息队列 | RabbitMQ | 功能完备、运维友好 |
+nodeA.registry.start();
+nodeA.bus.start();
+nodeA.stateSync.start();
 
-### 2. 消息队列集成
+// 写入状态
+nodeA.stateSync.set('scratchpad.title', '我的项目');
 
-**Exchange 设计**：
-```
-orchestra.tasks (direct)   → 任务分发
-orchestra.events (topic)   → 事件通知
-orchestra.rpc (direct)     → 同步调用
+// 发布消息
+nodeA.bus.publish('tasks:new', { type: 'build', priority: 1 });
 ```
 
-**关键特性**：
-- ✅ 消息优先级 (1-10)
-- ✅ 死信队列 (失败处理)
-- ✅ 延迟队列 (TTL + DLX)
-- ✅ 消息追踪 (Trace ID)
-- ✅ 背压处理 (Flow Control)
+### 方式二：独立使用各模块
 
-### 3. 状态同步机制
+```javascript
+const { NodeRegistry, MessageBus, StateSync } = require('./distributed');
 
-**同步策略**：
+// 1. 节点注册
+const registry = new NodeRegistry({
+  nodeId: 'worker-1',
+  role: 'worker',
+  storageMode: 'file',
+  storagePath: './.orchestra-nodes',
+});
+
+registry.start();
+registry.on('node:joined', (id, info) => {
+  console.log(`节点加入: ${id} (${info.role})`);
+});
+registry.on('node:offline', (id) => {
+  console.log(`节点离线: ${id}`);
+});
+
+// 2. 消息总线
+const bus = new MessageBus({ nodeId: 'worker-1' });
+bus.start();
+
+// 订阅
+bus.subscribe('worker:status', (msg) => {
+  console.log('收到状态更新:', msg.payload);
+});
+
+// 发布
+bus.publish('worker:status', { workerId: 'w1', status: 'busy' });
+
+// 3. 状态同步
+const stateSync = new StateSync({
+  nodeId: 'worker-1',
+  messageBus: bus,
+});
+stateSync.start();
+
+stateSync.set('worker:w1:status', 'busy');
+stateSync.set('worker:w1:cpu', 45);
+
+console.log('当前状态:', stateSync.getAll());
 ```
-Redis Hash (状态存储) + Redis Pub/Sub (实时通知) + 数据库 (持久化)
+
+## 📖 API 参考
+
+### NodeRegistry
+
+```javascript
+const registry = new NodeRegistry(opts);
+
+registry.start();           // 启动心跳
+registry.stop();            // 停止并标记离线
+
+registry.register(info);    // 注册/更新节点
+registry.unregister(id);    // 注销节点
+registry.getNode(id);       // 获取节点信息
+registry.getOnlineNodes();  // 获取所有在线节点
+registry.getAllNodes();     // 获取全部节点
+registry.getByRole(role);   // 按角色筛选
+
+// 事件
+registry.on('node:online', (id) => {});
+registry.on('node:offline', (id, node) => {});
+registry.on('node:joined', (id, info) => {});
+registry.on('node:left', (id, node) => {});
+registry.on('heartbeat', (id, ts) => {});
 ```
 
-**心跳协议**：
-- 发送间隔：5 秒
-- 离线阈值：30 秒
-- 告警阈值：60 秒
+### MessageBus
 
-**状态模型**：
-```typescript
-WorkerStatus: IDLE | BUSY | OFFLINE | DRAINING | ERROR
-TaskStatus: PENDING | RUNNING | COMPLETED | FAILED | CANCELLED
+```javascript
+const bus = new MessageBus(opts);
+
+bus.start();
+bus.stop();
+
+bus.publish(topic, payload);     // 发布消息 → 返回 messageId
+bus.subscribe(topic, handler);   // 订阅 → 返回退订函数
+bus.subscribeOnce(topic);        // 一次性订阅 → Promise
+
+// 事件
+bus.on('bus:started', (nodeId) => {});
+bus.on('bus:stopped', (nodeId) => {});
 ```
 
-### 4. 分布式锁
+### StateSync
 
-**实现方案**：Redlock 算法
+```javascript
+const stateSync = new StateSync({ nodeId, messageBus: bus });
 
-**使用场景**：
-- 任务分配 (防止重复分配)
-- 状态更新 (防止并发写入)
-- 定时任务 (防止重复执行)
+stateSync.start();
+stateSync.stop();
 
-**锁参数**：
-- 重试次数：3 次
-- 重试延迟：200ms
-- 时钟漂移因子：0.01
+stateSync.set(key, value);    // 设置并广播
+stateSync.get(key);           // 获取值
+stateSync.delete(key);        // 删除并广播
+stateSync.getAll();           // 获取全部键值
+stateSync.requestFullSync();  // 请求全量同步
 
----
+stateSync.stats();            // { nodeId, entryCount, versionVectorKeys }
 
-## 📊 架构指标
+// 事件
+stateSync.on('state:set', (key, value) => {});
+stateSync.on('state:delete', (key) => {});
+stateSync.on('state:sync', (key, value, sourceNode) => {});
+stateSync.on('statesync:merged', (sourceNode) => {});
+```
 
-### 性能目标
+## 🧪 运行 Demo
 
-| 指标 | 目标值 | 测量条件 |
-|------|--------|----------|
-| 请求延迟 (P50) | < 50ms | 100 并发 |
-| 请求延迟 (P99) | < 200ms | 100 并发 |
-| 吞吐量 | > 1000 req/s | 单实例 |
-| 状态同步延迟 | < 1s | 集群内 |
-| 故障检测时间 | < 30s | 心跳超时 |
+```bash
+node distributed/index.js
+```
 
-### 扩展性
+输出示例：
 
-| 规模 | 实例数 | Worker 数 | 任务/天 |
-|------|--------|-----------|---------|
-| 小型 | 1-2 | 10-20 | 10K |
-| 中型 | 3-5 | 50-100 | 100K |
-| 大型 | 6+ | 100+ | 1M+ |
+```
+=== Orchestra Distributed Runtime Demo ===
 
-### 可用性
+[B] 发布消息到 demo:greeting
+[B] 设置状态 scratchpad.title = "分布式测试"
+[B] 设置状态 scratchpad.owner = "node-B"
+[A] 请求全量同步...
+[A] 收到消息: Hello from B! (来自 node-B)
+[A] 状态变更: scratchpad.title = "分布式测试"
+[A] 状态变更: scratchpad.owner = "node-B"
 
-| 级别 | 可用性 | 年停机时间 | 部署模式 |
-|------|--------|-----------|----------|
-| 基础 | 99.0% | 3.65 天 | 单实例 |
-| 标准 | 99.9% | 8.76 小时 | 3 实例 + HA |
-| 高可用 | 99.99% | 52 分钟 | 多区域 |
+[A] scratchpad.title = 分布式测试
+[A] scratchpad.owner = node-B
 
----
+在线节点: ["node-A","node-B"]
+[A] StateSync 统计: {"nodeId":"node-A","entryCount":2,...}
+[B] StateSync 统计: {"nodeId":"node-B","entryCount":2,...}
 
-## 🔧 实施路线图
+=== Demo finished ===
+```
 
-### Phase 1: 基础架构 (P2-1, P2-2) ✅
-- [x] 核心工作流设计
-- [x] Worker 管理系统
-- [x] 基础 API 设计
+## 🏗 架构说明
 
-### Phase 2: 分布式支持 (P2-3) 📍 当前阶段
-- [x] 多实例部署架构设计
-- [x] 消息队列集成方案
-- [x] 状态同步协议设计
-- [x] 分布式锁机制设计
-- [ ] 实施优先级评估
+### 节点发现
+- 文件模式：节点信息写入 `.orchestra-nodes/nodes.json`，多实例共享目录即可发现
+- 内存模式：仅适合单进程多实例测试
 
-### Phase 3: 实施规划 (未来)
-- [ ] Docker Compose 部署脚本
-- [ ] Kubernetes Helm Chart
-- [ ] 监控告警配置
-- [ ] 性能基准测试
+### 消息传递
+- 本地：EventEmitter 即时分发
+- 跨节点：写入共享目录 `.orchestra-queue/outbound/`，各节点轮询消费
 
----
+### 状态同步
+- 版本向量跟踪每个键的变更历史
+- 冲突解决：版本向量优先，相同版本则 LWW（最后写者胜出）
+- 新节点加入时可请求全量同步
 
-## ⚠️ 风险与缓解
+### 多实例部署
 
-### 技术风险
+```
+┌──────────┐    ┌──────────┐    ┌──────────┐
+│Instance A│    │Instance B│    │Instance C│
+└────┬─────┘    └────┬─────┘    └────┬─────┘
+     │               │               │
+     └───────────────┼───────────────┘
+                     │
+           ┌─────────┴─────────┐
+           │  共享存储目录      │
+           │  - nodes/         │  NodeRegistry 文件模式
+           │  - queue/         │  MessageBus 消息队列
+           └───────────────────┘
+```
 
-| 风险 | 影响 | 概率 | 缓解措施 |
-|------|------|------|----------|
-| Redis 单点故障 | 高 | 低 | Redis Cluster + Sentinel |
-| 消息丢失 | 高 | 低 | 消息持久化 + ACK 机制 |
-| 脑裂问题 | 中 | 低 | Redlock 算法 + 法定人数 |
-| 网络分区 | 中 | 低 | 降级策略 + 本地缓存 |
+## ⚠️ 注意事项
 
-### 运维风险
-
-| 风险 | 影响 | 概率 | 缓解措施 |
-|------|------|------|----------|
-| 配置错误 | 高 | 中 | 配置验证 + 灰度发布 |
-| 资源耗尽 | 高 | 中 | 资源限制 + 自动扩缩容 |
-| 监控盲区 | 中 | 中 | 全面指标 + 告警测试 |
-
----
-
-## 📝 后续建议
-
-### 短期 (1-2 周)
-1. **评审设计文档** - 团队内部评审，收集反馈
-2. **搭建测试环境** - Docker Compose 最小部署
-3. **验证核心流程** - 消息队列、状态同步
-
-### 中期 (1 个月)
-1. **实现基础框架** - 分布式通信层
-2. **集成监控系统** - Prometheus + Grafana
-3. **性能基准测试** - 验证设计指标
-
-### 长期 (3 个月)
-1. **生产环境部署** - Kubernetes + Helm
-2. **多区域支持** - 跨区域数据同步
-3. **自动化运维** - CI/CD + GitOps
+1. **文件模式需要共享文件系统**（NFS、同一台机器多进程等）
+2. **跨节点消息有轮询延迟**（默认 2 秒，可通过 `pollInterval` 调整）
+3. **状态同步是最终一致性**，不是强一致
+4. **适合中小型部署**（1-5 实例），大规模场景建议接入 Redis/RabbitMQ
 
 ---
 
-## 🎓 设计原则
-
-本设计遵循以下核心原则：
-
-1. **简单优先** - 选择成熟、易维护的技术栈
-2. **渐进式演进** - 支持从小规模到大规模的平滑过渡
-3. **故障隔离** - 单点故障不影响整体系统
-4. **可观测性** - 全面的监控、日志、追踪
-5. **自动化运维** - 减少人工干预，提升可靠性
-
----
-
-## 📞 联系方式
-
-如有问题或建议，请联系：
-- 文档作者：AI 后端架构师
-- 创建日期：2026-04-03
-- 文档版本：1.0
-
----
-
-**P2-3 阶段任务完成** ✅
-
-所有设计文档已输出到：
-`/home/z3129119/.openclaw/workspace/orchestra/distributed/`
+**文档版本**: 2.0  
+**更新日期**: 2026-04-19  
+**状态**: 实现完成（设计文档见 `01-04`）

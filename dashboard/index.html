@@ -2,75 +2,159 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>Orchestra Dashboard</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: sans-serif; background: #1a1a2e; color: #fff; padding: 20px; }
-        .container { max-width: 1200px; margin: 0 auto; }
-        h1 { text-align: center; margin-bottom: 30px; }
-        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 30px; }
-        .stat { background: #16213e; padding: 20px; border-radius: 10px; text-align: center; }
-        .stat-value { font-size: 2.5em; font-weight: bold; color: #00ff88; }
-        .stat-label { opacity: 0.8; margin-top: 10px; }
-        .section { margin-bottom: 30px; }
-        .section-title { font-size: 1.3em; margin-bottom: 15px; border-bottom: 2px solid #00ff88; padding-bottom: 10px; }
-        .worker-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
-        .worker { background: #16213e; padding: 15px; border-radius: 8px; border-left: 4px solid #00ff88; }
-        .worker.completed { border-left-color: #00ff88; }
-        .worker.failed { border-left-color: #ff4757; }
-        .worker.running { border-left-color: #1e90ff; }
-        .worker-name { font-weight: bold; margin-bottom: 8px; }
-        .worker-info { display: flex; justify-content: space-between; font-size: 0.9em; opacity: 0.8; margin: 5px 0; }
-        .btn { display: block; margin: 20px auto; padding: 12px 30px; background: #00ff88; color: #1a1a2e; border: none; border-radius: 20px; font-size: 1em; cursor: pointer; }
-        .btn:hover { opacity: 0.9; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎻 Orchestra Dashboard</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <h1>🎻 Orchestra Dashboard</h1>
-        <button class="btn" onclick="refresh()">🔄 刷新</button>
-        
-        <div class="stats">
-            <div class="stat"><div class="stat-value" id="total">0</div><div class="stat-label">总 Workers</div></div>
-            <div class="stat"><div class="stat-value" id="completed">0</div><div class="stat-label">已完成</div></div>
-            <div class="stat"><div class="stat-value" id="failed">0</div><div class="stat-label">失败</div></div>
-            <div class="stat"><div class="stat-value" id="avgTime">0s</div><div class="stat-label">平均耗时</div></div>
-        </div>
-        
-        <div class="section">
-            <h2 class="section-title">📊 Worker 列表</h2>
-            <div class="worker-list" id="workers"></div>
+        <!-- Header -->
+        <header class="header">
+            <h1>🎻 Orchestra Dashboard</h1>
+            <div class="header-controls">
+                <span id="connectionStatus" class="status-indicator disconnected">
+                    <span class="dot"></span>
+                    <span class="text">已断开</span>
+                </span>
+                <button id="refreshBtn" class="btn btn-secondary">🔄 刷新</button>
+                <button id="settingsBtn" class="btn btn-secondary">⚙️ 设置</button>
+            </div>
+        </header>
+
+        <!-- Overview Cards -->
+        <section class="section">
+            <h2 class="section-title">📊 概览</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">⏱️</div>
+                    <div class="stat-value" id="uptime">0分钟</div>
+                    <div class="stat-label">运行时间</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🤖</div>
+                    <div class="stat-value" id="activeWorkers">0/0</div>
+                    <div class="stat-label">活跃 Worker</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⚡</div>
+                    <div class="stat-value" id="tasksPerMinute">0</div>
+                    <div class="stat-label">任务/分钟</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">❌</div>
+                    <div class="stat-value" id="errorRate">0%</div>
+                    <div class="stat-label">错误率</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">💻</div>
+                    <div class="stat-value" id="cpuUsage">0%</div>
+                    <div class="stat-label">CPU 使用</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🧠</div>
+                    <div class="stat-value" id="memoryUsage">0%</div>
+                    <div class="stat-label">内存使用</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Metrics Charts -->
+        <section class="section">
+            <h2 class="section-title">📈 实时指标</h2>
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <canvas id="cpuChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <canvas id="memoryChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <canvas id="tasksChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Worker List -->
+        <section class="section">
+            <div class="section-header">
+                <h2 class="section-title">🤖 Worker 列表</h2>
+                <span id="workerCount" class="badge">0 个 Worker</span>
+            </div>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Worker</th>
+                            <th>状态</th>
+                            <th>当前任务</th>
+                            <th>已完成</th>
+                            <th>失败</th>
+                            <th>CPU</th>
+                            <th>内存</th>
+                            <th>最后心跳</th>
+                        </tr>
+                    </thead>
+                    <tbody id="workersTableBody">
+                        <tr class="loading-row">
+                            <td colspan="8">加载中...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Alerts -->
+        <section class="section">
+            <div class="section-header">
+                <h2 class="section-title">🚨 告警</h2>
+                <span id="alertCount" class="badge">0 条告警</span>
+            </div>
+            <div id="alertsList" class="alerts-list">
+                <div class="alert-item empty">暂无告警</div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Orchestra Dashboard v2.0 · P2 阶段 · 实时 WebSocket 推送</p>
+        </footer>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <h3>⚙️ 仪表盘设置</h3>
+            <div class="form-group">
+                <label>刷新频率</label>
+                <div class="radio-group">
+                    <label><input type="radio" name="refreshRate" value="2000"> 2秒</label>
+                    <label><input type="radio" name="refreshRate" value="5000" checked> 5秒</label>
+                    <label><input type="radio" name="refreshRate" value="10000"> 10秒</label>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="cpuWarningThreshold">CPU 告警阈值 (%)</label>
+                <input type="number" id="cpuWarningThreshold" value="70" min="0" max="100">
+            </div>
+            <div class="form-group">
+                <label for="memWarningThreshold">内存告警阈值 (%)</label>
+                <input type="number" id="memWarningThreshold" value="75" min="0" max="100">
+            </div>
+            <div class="form-group">
+                <label for="errorRateThreshold">错误率告警阈值 (%)</label>
+                <input type="number" id="errorRateThreshold" value="5" min="0" max="100">
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" id="useWebSocket" checked> 使用 WebSocket</label>
+            </div>
+            <div class="modal-actions">
+                <button id="cancelSettings" class="btn btn-secondary">取消</button>
+                <button id="saveSettings" class="btn btn-primary">保存</button>
+            </div>
         </div>
     </div>
-    
-    <script>
-        const data = {
-            workers: [
-                { id: 'agent-x7q', description: '研究认证模块', status: 'completed', durationMs: 5000 },
-                { id: 'agent-y8r', description: '实现用户登录', status: 'running', durationMs: 3000 },
-                { id: 'agent-z9s', description: '设计数据库', status: 'completed', durationMs: 8000 },
-                { id: 'agent-a1b', description: '测试 API', status: 'failed', durationMs: 2000 }
-            ]
-        };
-        
-        function render() {
-            const w = data.workers;
-            document.getElementById('total').textContent = w.length;
-            document.getElementById('completed').textContent = w.filter(x => x.status === 'completed').length;
-            document.getElementById('failed').textContent = w.filter(x => x.status === 'failed').length;
-            document.getElementById('avgTime').textContent = (w.reduce((s, x) => s + x.durationMs, 0) / w.length / 1000).toFixed(1) + 's';
-            
-            document.getElementById('workers').innerHTML = w.map(x => `
-                <div class="worker ${x.status}">
-                    <div class="worker-name">${x.id}</div>
-                    <div class="worker-info"><span>${x.description}</span><span>${x.status}</span></div>
-                    <div class="worker-info"><span>耗时</span><span>${(x.durationMs / 1000).toFixed(1)}s</span></div>
-                </div>
-            `).join('');
-        }
-        
-        function refresh() { render(); }
-        render();
-    </script>
+
+    <script src="api.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>

@@ -436,7 +436,11 @@ ReadWriteSeparator.prototype.getStats = function() {
 ReadWriteSeparator.prototype.getPerformanceReport = function() {
   if (this.taskHistory.length === 0) {
     return {
-      message: '没有任务历史'
+      totalTasks: 0,
+      averageDuration: 0,
+      successRate: '0.00%',
+      readWorkersCreated: 0,
+      writeWorkersCreated: 0
     };
   }
   

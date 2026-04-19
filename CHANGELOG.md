@@ -70,23 +70,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [1.2.0] - 2026-04-19
 
-### Planned Features
+### 🆕 P2 阶段新增
+
+**监控 Dashboard**
+- `dashboard/server.js` — HTTP 服务器 + WebSocket 实时更新
+- `dashboard/api.js` — 后端 REST API
+- `dashboard/app.js` — 前端主应用逻辑
+- `dashboard/metrics.js` — 性能指标收集与计算
+- `dashboard/alerts.js` — 告警规则与通知系统
+- `dashboard/index-v6.0.html` — 最终版 Worker 状态可视化 UI
+
+**ML 优化模块**
+- `ml-optimizer/WeightOptimizer.js` — 基于成功率的权重自动调整
+- `ml-optimizer/DecisionHistory.js` — 决策历史记录与回放
+- `ml-optimizer/ABTestManager.js` — A/B 测试框架
+- `ml-optimizer/DecisionMatrix-integration.js` — 与现有 DecisionMatrix 无缝集成
+
+**分布式架构**
+- `distributed/NodeRegistry.js` — 多实例节点注册/心跳/上下线管理
+- `distributed/MessageBus.js` — EventEmitter pub/sub + 文件队列持久化
+- `distributed/StateSync.js` — 版本向量 + LWW 冲突解决
+- `distributed/index.js` — 统一导出 + createRuntime() 快捷创建
+- `distributed/01-04` — 架构设计/消息队列/状态同步/部署指南 四份设计文档
+
+**文档**
+- `P2-SUMMARY.md` — P2 阶段完成总结
+- `DEPLOYMENT.md` — 完整部署指南（单机 + 分布式）
+- `USER-MANUAL.md` — 用户使用手册
+
+### [Unreleased]
+
+#### Planned Features
 
 - [ ] 支持自定义阶段类型
 - [ ] 支持动态 Worker 创建
 - [ ] 支持工作流暂停/恢复
 - [ ] 支持工作流模板
-- [ ] 增加监控和指标收集
-- [ ] 支持分布式执行
-- [ ] 增加 Web UI 可视化
 - [ ] 支持工作流版本控制
 
-### Under Consideration
+#### Under Consideration
 
 - 支持更多 Coordinator 策略
-- 集成机器学习模型自动优化
 - 支持多工作流协作
 - 增加性能分析工具
 
@@ -96,6 +122,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Release Date | Key Features |
 |---------|-------------|--------------|
+| 1.2.0 | 2026-04-19 | Dashboard + ML Optimizer + Distributed |
 | 1.0.0 | 2026-04-03 | Initial release with four-phase workflow |
 
 ---

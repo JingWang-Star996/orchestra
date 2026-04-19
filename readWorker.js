@@ -85,6 +85,11 @@ ReadWorker.prototype.readFile = async function(filePath, options) {
     
     this.status = 'error';
     
+    // 如果是配置错误，抛出（让调用方处理）
+    if (error.message.indexOf('not configured') !== -1) {
+      throw error;
+    }
+    
     return {
       success: false,
       path: filePath,

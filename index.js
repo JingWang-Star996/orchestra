@@ -20,13 +20,17 @@ const OrchestraGateway = require('./gateway'); // 100% 版本新增
 
 // 导出 Gateway（100% 版本统一入口）
 module.exports = OrchestraGateway;
-module.exports.Orchestra = Orchestra; // 保持向后兼容
 module.exports.TaskPlanner = TaskPlanner;
 module.exports.AgentRouter = AgentRouter;
 module.exports.ProgressTracker = ProgressTracker;
 module.exports.ResultAggregator = ResultAggregator;
 module.exports.ErrorHandler = ErrorHandler;
 module.exports.Gateway = OrchestraGateway;
+
+// 跨 Agent 通信层（新增）
+module.exports.InterAgentBridge = require('./interAgentBridge');
+module.exports.ExternalAgentAdapter = require('./externalAgentAdapter');
+module.exports.SharedContext = require('./sharedContext');
 
 class Orchestra {
   constructor(options = {}) {

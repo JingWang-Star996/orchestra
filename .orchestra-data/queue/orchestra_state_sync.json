@@ -1,0 +1,19 @@
+[
+  {
+    "id": "cd70a93c-3876-421c-9fb9-04e1ef287aaa",
+    "topic": "orchestra:state:sync",
+    "payload": {
+      "key": "v",
+      "entry": {
+        "value": "ok",
+        "version": 1,
+        "node": "verify",
+        "ts": 1776577353457
+      },
+      "sender": "verify",
+      "ts": 1776577353457
+    },
+    "sender": "verify",
+    "ts": 1776577353458
+  }
+]

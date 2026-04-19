@@ -1,9 +1,13 @@
 # 🎵 Orchestra - 多 Agent 协作框架
 
-**版本**: v1.0.0  
-**状态**: ✅ 生产就绪  
+**版本**: v1.2.0  
+**状态**: ✅ P2 全部完成
 **许可证**: MIT  
 **语言**: 中文 | [English](./README_en.md)
+
+> ⚠️ **与指挥官模式的关系**：Orchestra 的核心理念已融入指挥官模式（`skills/commander-mode/SKILL.md`）。
+> 日常使用请优先使用指挥官模式。Orchestra 代码作为设计参考或独立运行工具。
+> 完整共存分析见 `COEXISTENCE-ANALYSIS.md`。
 
 ---
 
@@ -36,11 +40,67 @@ Orchestra 是一个**企业级多 Agent 协作框架**，深度集成 OpenClaw A
 5. **🔐 权限控制** - ACL 访问控制列表
 6. **📊 监控 Dashboard** - Worker 状态可视化
 7. **🧠 ML 优化** - 决策权重自动调整
-8. **🌐 分布式支持** - 多实例部署
+8. **🌐 分布式支持** - 多实例部署（P2 新增）
+9. **📈 实时监控** - Dashboard + WebSocket 实时更新（P2 新增）
+10. **🧪 A/B 测试** - 算法对比与效果验证（P2 新增）
 
 ---
 
 ## 🏗️ 架构设计
+
+### Phase 3 新增（2026-04-10 完成）
+
+**读写分离系统**:
+- `readWorker.js` - 只读 Worker（文件读取、代码分析、搜索）
+- `writeWorker.js` - 写入 Worker（文件编辑、创建、删除）
+- `readWriteSeparator.js` - 智能路由管理器
+
+**性能优化**:
+- `cacheLayer.js` - LRU 缓存层（TTL 过期、命中率统计）
+
+### P2 新增（2026-04-19 完成）
+
+**监控 Dashboard**:
+- `dashboard/server.js` - HTTP + WebSocket 服务
+- `dashboard/api.js` - REST API
+- `dashboard/app.js` - 前端主应用
+- `dashboard/metrics.js` - 性能指标收集
+- `dashboard/alerts.js` - 告警系统
+- `dashboard/index-v6.0.html` - 完整可视化 UI
+
+**ML 优化模块**:
+- `ml-optimizer/WeightOptimizer.js` - 权重自动调整
+- `ml-optimizer/DecisionHistory.js` - 决策历史记录
+- `ml-optimizer/ABTestManager.js` - A/B 测试框架
+- `ml-optimizer/DecisionMatrix-integration.js` - 集成入口
+
+**分布式架构**:
+- `distributed/NodeRegistry.js` - 节点注册与心跳
+- `distributed/MessageBus.js` - 发布/订阅消息总线
+- `distributed/StateSync.js` - 跨节点状态同步
+- `distributed/index.js` - 统一导出 + createRuntime()
+
+**P2 状态**: ✅ 100% 完成（2026-04-19）
+
+**文档**:
+- `DEPLOYMENT.md` - 完整部署指南
+- `USER-MANUAL.md` - 用户使用手册
+- `P2-SUMMARY.md` - P2 阶段总结
+
+### 单元测试:
+- `test/cacheLayer.test.js` - 10 个测试用例 ✅
+- `test/readWriteSeparator.test.js` - 18 个测试用例 ✅
+- `test/groupManager.test.js` - 16 个测试用例 ✅
+- `test/phase3-integration.test.js` - 10 个集成测试 ✅
+- `test/performance-benchmark.js` - 性能基准测试 ✅
+
+**Phase 3 状态**: ✅ 100% 完成（2026-04-10）
+
+**文档**:
+- `docs/ARCHITECTURE.md` - 架构设计（7 层架构）
+- `docs/PERFORMANCE.md` - 性能优化指南
+- `docs/API.md` - 完整 API 参考
+- `docs/TROUBLESHOOTING.md` - 故障排查指南
 
 ### 四阶段工作流
 
@@ -226,7 +286,28 @@ await workflow.execute({
 
 ## 📊 性能表现
 
-### 对比测试
+### Phase 3 实测性能（2026-04-05）
+
+**缓存层性能**:
+- 写入速度：**50 万条/秒**（10000 条 / 20ms）
+- 读取速度：**100 万条/秒**（10000 条 / 10ms）
+- 命中率：**100%**（测试环境）
+- 内存占用：**~1MB**（1000 条缓存）
+
+**读写分离性能**:
+- 任务识别：<1ms
+- 并发读取：5 个
+- DryRun 模式：✅ 支持
+
+**性能目标达成**:
+| 指标 | 目标值 | 实测值 | 状态 |
+|------|--------|--------|------|
+| 缓存命中率 | >80% | 100% | ✅ |
+| 并发读取 | 5 个 | 5 个 | ✅ |
+| 响应时间 | <2 秒 | <10ms | ✅ |
+| 内存占用 | <100MB | ~1MB | ✅ |
+
+### 对比测试（理论预测）
 
 | 任务类型 | 单 Agent | Orchestra | 提升 |
 |---------|---------|-----------|------|
